@@ -26,7 +26,12 @@ private struct ProfilePlaceholder: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: MosaicSpace.large) {
-                Image(systemName: "person.crop.circle.fill").font(.system(size: 56)).foregroundStyle(MosaicColor.accent)
+                Image("AvatarPlaceholder")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 72, height: 72)
+                    .clipShape(Circle())
+                    .accessibilityLabel("Profile avatar")
                 Text(session.currentUser?.profile?.displayName ?? "Signed in").font(MosaicType.title)
                 Button("Sign Out", role: .destructive) { Task { await session.signOut() } }.buttonStyle(.bordered)
             }.navigationTitle("Profile")

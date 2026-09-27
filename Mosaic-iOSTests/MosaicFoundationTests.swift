@@ -1,11 +1,16 @@
 import XCTest
 @testable import Mosaic_iOS
 
+@MainActor
 final class MosaicFoundationTests: XCTestCase {
     func testConfigurationKeepsProductionAPIBaseURL() {
         let configuration = AppConfiguration(apiBaseURL: URL(string: "https://mosaic-eight-theta.vercel.app")!, supabaseURL: nil, supabasePublishableKey: "")
         XCTAssertEqual(configuration.apiBaseURL.absoluteString, "https://mosaic-eight-theta.vercel.app")
         XCTAssertFalse(configuration.hasSupabaseCredentials)
+    }
+
+    func testNativeOAuthCallbackIsStable() {
+        XCTAssertEqual(OAuthCallback.url.absoluteString, "mosaic://auth/callback")
     }
 
     func testRequestBuildsEndpointAndBearerHeader() throws {

@@ -4,6 +4,10 @@ import Supabase
 
 enum SessionState: Equatable, Sendable { case launching, signedOut, signedIn, error(String) }
 
+enum OAuthCallback {
+    static let url = URL(string: "mosaic://auth/callback")!
+}
+
 @MainActor @Observable
 final class SessionStore {
     private let configuration: AppConfiguration
@@ -34,7 +38,7 @@ final class SessionStore {
     func signInWithGoogle() async {
         guard let client else { state = .error("Supabase configuration is required before sign-in can be enabled."); return }
         do {
-            try await client.auth.signInWithOAuth(provider: .google, redirectTo: URL(string: "mosaic://login-callback"))
+            try await client.auth.signInWithOAuth(provider: .google, redirectTo: OAuthCallback.url)
         } catch {
             state = .error("Could not start sign-in. Please try again.")
         }

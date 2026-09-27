@@ -22,7 +22,11 @@ private struct LaunchView: View {
         ZStack {
             MosaicColor.background.ignoresSafeArea()
             VStack(spacing: MosaicSpace.medium) {
-                Text("MOSAIC").font(MosaicType.wordmark).tracking(5)
+                Image("MosaicEmblem")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 38, height: 38)
+                    .accessibilityLabel("Mosaic")
                 ProgressView().tint(MosaicColor.accent).accessibilityLabel("Restoring session")
             }
         }

@@ -7,7 +7,11 @@ struct AuthView: View {
             MosaicColor.background.ignoresSafeArea()
             VStack(alignment: .leading, spacing: MosaicSpace.large) {
                 Spacer()
-                Text("MOSAIC").font(MosaicType.wordmark).tracking(6).foregroundStyle(MosaicColor.primaryText)
+                Image("MosaicWordmark")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: 190, maxHeight: 40, alignment: .leading)
+                    .accessibilityLabel("Mosaic")
                 Text("A home for every story you follow.").font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText)
                 Text("Track the movies, series, games, and books that stay with you.").font(MosaicType.body).foregroundStyle(MosaicColor.secondaryText)
                 if case let .error(message) = session.state { Text(message).font(.footnote).foregroundStyle(.orange) }

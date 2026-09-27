@@ -11,11 +11,11 @@ struct AppConfiguration: Sendable {
         } else {
             values = [:]
         }
-        let apiURL = values["apiBaseURL"] as? String ?? "https://mosaic-eight-theta.vercel.app"
+        let apiURL = values["MOSAIC_API_BASE_URL"] as? String ?? "https://mosaic-eight-theta.vercel.app"
         apiBaseURL = URL(string: apiURL) ?? URL(string: "https://mosaic-eight-theta.vercel.app")!
-        let supabaseURLString = values["supabaseURL"] as? String ?? ""
+        let supabaseURLString = values["SUPABASE_URL"] as? String ?? ""
         supabaseURL = supabaseURLString.isEmpty ? nil : URL(string: supabaseURLString)
-        supabasePublishableKey = values["supabasePublishableKey"] as? String ?? ""
+        supabasePublishableKey = values["SUPABASE_PUBLISHABLE_KEY"] as? String ?? ""
     }
     init(apiBaseURL: URL, supabaseURL: URL?, supabasePublishableKey: String) { self.apiBaseURL = apiBaseURL; self.supabaseURL = supabaseURL; self.supabasePublishableKey = supabasePublishableKey }
     var hasSupabaseCredentials: Bool { supabaseURL != nil && !supabasePublishableKey.isEmpty }

@@ -2,11 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>apiBaseURL</key>
+    <key>MOSAIC_API_BASE_URL</key>
     <string>https://mosaic-eight-theta.vercel.app</string>
-    <key>supabaseURL</key>
+    <key>SUPABASE_URL</key>
     <string></string>
-    <key>supabasePublishableKey</key>
+    <key>SUPABASE_PUBLISHABLE_KEY</key>
     <string></string>
 </dict>
 </plist>
