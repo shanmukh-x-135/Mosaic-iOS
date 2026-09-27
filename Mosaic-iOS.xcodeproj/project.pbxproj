@@ -8,7 +8,12 @@
 
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Mosaic-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mosaic-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000121 /* Mosaic-iOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Mosaic-iOSTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXBuildFile section */
+		000000000000000000000202 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000201 /* Supabase */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* Mosaic-iOS */ = {
@@ -16,12 +21,14 @@
 			path = "Mosaic-iOS";
 			sourceTree = "<group>";
 		};
+		000000000000000000000011 /* Mosaic-iOSTests */ = { isa = PBXFileSystemSynchronizedRootGroup; path = "Mosaic-iOSTests"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		000000000000000130000000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				000000000000000000000202 /* Supabase in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -31,6 +38,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000010 /* Mosaic-iOS */,
+				000000000000000000000011 /* Mosaic-iOSTests */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -39,6 +47,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000120 /* Mosaic-iOS.app */,
+				000000000000000000000121 /* Mosaic-iOSTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -54,6 +63,9 @@
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
 			);
+			packageProductDependencies = (
+				000000000000000000000201 /* Supabase */,
+			);
 			buildRules = (
 			);
 			fileSystemSynchronizedGroups = (
@@ -63,6 +75,18 @@
 			productName = MyApp;
 			productReference = 000000000000000000000120 /* Mosaic-iOS.app */;
 			productType = "com.apple.product-type.application";
+		};
+		000000000000000100000001 /* Mosaic-iOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000110000001 /* Build configuration list for PBXNativeTarget "Mosaic-iOSTests" */;
+			buildPhases = (000000000000000120000001 /* Sources */, 000000000000000130000001 /* Frameworks */, 000000000000000140000001 /* Resources */);
+			buildRules = ();
+			dependencies = (000000000000000150000001 /* PBXTargetDependency */);
+			fileSystemSynchronizedGroups = (000000000000000000000011 /* Mosaic-iOSTests */);
+			name = "Mosaic-iOSTests";
+			productName = "Mosaic-iOSTests";
+			productReference = 000000000000000000000121 /* Mosaic-iOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -92,11 +116,42 @@
 			productRefGroup = 000000000000000000000020 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
+			packageReferences = (
+				000000000000000000000200 /* XCRemoteSwiftPackageReference \"supabase-swift\" */,
+			);
 			targets = (
 				000000000000000100000000 /* Mosaic-iOS */,
+				000000000000000100000001 /* Mosaic-iOSTests */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXContainerItemProxy section */
+		000000000000000160000001 /* PBXContainerItemProxy */ = { isa = PBXContainerItemProxy; containerPortal = 000000000000000000000000 /* Project object */; proxyType = 1; remoteGlobalIDString = 000000000000000100000000; remoteInfo = "Mosaic-iOS"; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000150000001 /* PBXTargetDependency */ = { isa = PBXTargetDependency; target = 000000000000000100000000 /* Mosaic-iOS */; targetProxy = 000000000000000160000001 /* PBXContainerItemProxy */; };
+/* End PBXTargetDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		000000000000000000000200 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		000000000000000000000201 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 000000000000000000000200 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		000000000000000140000000 /* Resources */ = {
@@ -104,6 +159,9 @@
 			files = (
 			);
 		};
+		000000000000000120000001 /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		000000000000000130000001 /* Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		000000000000000140000001 /* Resources */ = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -325,6 +383,8 @@
 			};
 			name = Release;
 		};
+		000000000000000111000001 /* Debug configuration for PBXNativeTarget "Mosaic-iOSTests" */ = { isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 27.0; PRODUCT_BUNDLE_IDENTIFIER = "com.shanmukhpgsspersonalteam.MosaiciOSTests"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mosaic-iOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mosaic-iOS"; }; name = Debug; };
+		000000000000000112000001 /* Release configuration for PBXNativeTarget "Mosaic-iOSTests" */ = { isa = XCBuildConfiguration; buildSettings = { BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 27.0; PRODUCT_BUNDLE_IDENTIFIER = "com.shanmukhpgsspersonalteam.MosaiciOSTests"; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Mosaic-iOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Mosaic-iOS"; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -344,6 +404,7 @@
 			);
 			defaultConfigurationName = Release;
 		};
+		000000000000000110000001 /* Build configuration list for PBXNativeTarget "Mosaic-iOSTests" */ = { isa = XCConfigurationList; buildConfigurations = (000000000000000111000001 /* Debug configuration for PBXNativeTarget "Mosaic-iOSTests" */, 000000000000000112000001 /* Release configuration for PBXNativeTarget "Mosaic-iOSTests" */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = 000000000000000000000000 /* Project object */;
