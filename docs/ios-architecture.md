@@ -10,7 +10,7 @@
 
 ## Authentication and session flow
 
-`SessionStore` is the only SwiftUI-facing authentication boundary. On launch it asks Supabase Swift to restore its securely persisted session. A restored access token is immediately sent to `GET /api/me` through `MosaicAPIClient`; only a successful response enters the signed-in shell. It exposes `launching`, `signedOut`, `signedIn`, and recoverable `error` states. Tokens are never logged or passed to views.
+`SessionStore` is the only SwiftUI-facing authentication boundary. On launch it asks Supabase Swift to restore its securely persisted session. A restored access token is immediately sent to `GET /api/me` through `MosaicAPIClient`; a valid Supabase session enters the signed-in shell even if that profile request is temporarily unavailable. It exposes `launching`, `signedOut`, `signedIn`, and recoverable `error` states. Tokens are never logged or passed to views.
 
 The signed-out screen starts Google OAuth through Supabase Swift with the native callback `mosaic://auth/callback`. Supabase Swift owns `ASWebAuthenticationSession`, exchanges the callback internally, and returns the established session directly to `SessionStore`; SwiftUI does not exchange the callback a second time. The restored access token then calls `/api/me` before profile data is shown. A temporary `/api/me` failure leaves the valid Supabase session signed in and displays a recoverable account-loading message in the shell.
 
