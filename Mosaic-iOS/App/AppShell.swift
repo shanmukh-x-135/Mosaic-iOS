@@ -33,6 +33,12 @@ private struct ProfilePlaceholder: View {
                     .clipShape(Circle())
                     .accessibilityLabel("Profile avatar")
                 Text(session.currentUser?.profile?.displayName ?? "Signed in").font(MosaicType.title)
+                if let backendError = session.backendError {
+                    Text(backendError)
+                        .font(.footnote)
+                        .foregroundStyle(MosaicColor.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
                 Button("Sign Out", role: .destructive) { Task { await session.signOut() } }.buttonStyle(.bordered)
             }.navigationTitle("Profile")
         }

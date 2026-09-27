@@ -13,7 +13,6 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .tint(MosaicColor.accent)
-        .onOpenURL { url in Task { await session.handleOpenURL(url) } }
     }
 }
 

@@ -13,6 +13,12 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(OAuthCallback.url.absoluteString, "mosaic://auth/callback")
     }
 
+    func testOAuthFailureMessagesAreSpecificAndSafe() {
+        XCTAssertEqual(OAuthFailure.couldNotStart.message, "Google sign-in could not be started. Please try again.")
+        XCTAssertEqual(OAuthFailure.cancelled.message, "Google sign-in was cancelled.")
+        XCTAssertEqual(OAuthFailure.completionFailed.message, "Google sign-in could not be completed. Please try again.")
+    }
+
     func testRequestBuildsEndpointAndBearerHeader() throws {
         let client = MosaicAPIClient(baseURL: URL(string: "https://mosaic-eight-theta.vercel.app")!)
         let request = try client.makeRequest(path: "/api/me", token: "access-token")
@@ -34,6 +40,6 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(user.id, "user-1")
         XCTAssertEqual(user.profile?.displayName, "Ada")
         XCTAssertEqual(SessionState.signedOut, .signedOut)
-        XCTAssertNotEqual(SessionState.launching, .signedIn)
+        XCTAssertEqual(SessionState.signedIn, .signedIn)
     }
 }

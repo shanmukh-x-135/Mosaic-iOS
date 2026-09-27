@@ -12,7 +12,7 @@
 
 `SessionStore` is the only SwiftUI-facing authentication boundary. On launch it asks Supabase Swift to restore its securely persisted session. A restored access token is immediately sent to `GET /api/me` through `MosaicAPIClient`; only a successful response enters the signed-in shell. It exposes `launching`, `signedOut`, `signedIn`, and recoverable `error` states. Tokens are never logged or passed to views.
 
-The signed-out screen starts Google OAuth through Supabase Swift with the native callback `mosaic://auth/callback`. The app registers the `mosaic` URL scheme, and SwiftUI forwards the callback to Supabase Swift's `session(from:)` URL handler; the restored access token then calls `/api/me` before the tab shell is shown.
+The signed-out screen starts Google OAuth through Supabase Swift with the native callback `mosaic://auth/callback`. Supabase Swift owns `ASWebAuthenticationSession`, exchanges the callback internally, and returns the established session directly to `SessionStore`; SwiftUI does not exchange the callback a second time. The restored access token then calls `/api/me` before profile data is shown. A temporary `/api/me` failure leaves the valid Supabase session signed in and displays a recoverable account-loading message in the shell.
 
 Complete the following before using it on a device:
 
@@ -20,7 +20,7 @@ Complete the following before using it on a device:
 2. Enter `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` in `MosaicConfiguration.plist`.
 3. Enable/configure Google in Supabase Auth, including its provider credentials, in the Supabase dashboard.
 
-Physical-device smoke test: install with automatic signing, tap **Continue with Google**, complete the Google and Supabase browser flow, and confirm the app reopens through `mosaic://auth/callback` into the tab shell. Confirm the Profile placeholder is shown only after `/api/me` succeeds; sign out and relaunch to confirm the signed-out state is restored.
+Physical-device smoke test: delete/reinstall the app if needed, confirm the Mosaic icon is visible on the Home Screen, launch it, tap **Continue with Google**, complete the Google and Supabase browser flow, and confirm the app returns directly to the tab shell. Force quit and reopen to confirm session restoration. If `/api/me` is temporarily unavailable, the app remains signed in and shows a recoverable account-loading message.
 
 ## API client
 
