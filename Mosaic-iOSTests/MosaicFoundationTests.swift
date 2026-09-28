@@ -66,6 +66,13 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertNil(stories[1].progress.progressFraction)
     }
 
+    func testContinueStoryBuildsStableCatalogDetailRoute() throws {
+        let story = try XCTUnwrap(decodeContinueResponse(#"{"items":[{"id":"tmdb:tv:1396","media_type":"series","provider":"tmdb","provider_id":"1396","title":"Breaking Bad","status":"watching","last_activity_at":null,"progress":{"watched_episodes":14,"total_episodes":62,"percent":23},"next_action":{"type":"log_episode"}}]}"#).items.first.map(ContinueStory.init(dto:)))
+
+        XCTAssertEqual(story.detailRoute, MediaDetailRoute(provider: "tmdb", mediaType: .series, providerID: "1396"))
+        XCTAssertEqual(story.detailRoute.catalogPath, "/api/catalog/tmdb/tv/1396")
+    }
+
     func testHomeErrorPresentationMapsAPIError() {
         XCTAssertEqual(HomeErrorPresentation.from(MosaicAPIError.network("offline")), .offline)
         XCTAssertEqual(HomeErrorPresentation.from(MosaicAPIError.unauthorized("expired")), .sessionExpired)

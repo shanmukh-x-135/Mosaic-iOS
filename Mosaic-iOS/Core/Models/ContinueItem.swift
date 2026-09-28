@@ -41,6 +41,8 @@ struct ContinueNextActionDTO: Decodable, Sendable {
 struct ContinueStory: Identifiable, Equatable, Sendable {
     let id: String
     let mediaType: ContinueMediaType
+    let provider: String
+    let providerID: String
     let title: String
     let artworkURL: URL?
     let fallbackArtworkURL: URL?
@@ -50,6 +52,8 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
     init(dto: ContinueItemDTO) {
         id = dto.id
         mediaType = dto.mediaType
+        provider = dto.provider
+        providerID = dto.providerId
         title = dto.title
         artworkURL = dto.backdropURL
         fallbackArtworkURL = dto.posterURL
@@ -72,6 +76,20 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
 
     var mediaLabel: String { mediaType.rawValue.capitalized }
     var actionTitle: String { mediaType == .book ? "Continue Reading" : "Continue" }
+
+    var detailRoute: MediaDetailRoute {
+        MediaDetailRoute(provider: provider, mediaType: CatalogMediaType(mediaType), providerID: providerID)
+    }
+}
+
+extension CatalogMediaType {
+    init(_ continueType: ContinueMediaType) {
+        switch continueType {
+        case .series: self = .series
+        case .book: self = .book
+        case .game: self = .game
+        }
+    }
 }
 
 enum ContinueProgress: Equatable, Sendable {

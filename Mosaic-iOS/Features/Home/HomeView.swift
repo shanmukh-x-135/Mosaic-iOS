@@ -62,7 +62,12 @@ private struct ContinueRail: View {
             ScrollView(.horizontal) {
                 LazyHStack(spacing: MosaicSpace.medium) {
                     ForEach(stories) { story in
-                        NavigationLink { ContinueDetailView(story: story) } label: { ContinueStoryCard(story: story) }.buttonStyle(.plain)
+                        NavigationLink {
+                            MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
+                        } label: {
+                            ContinueStoryCard(story: story)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .scrollTargetLayout()
@@ -112,22 +117,5 @@ private struct HomeErrorState: View {
         .padding(MosaicSpace.large)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
         .padding(.horizontal, MosaicSpace.large)
-    }
-}
-
-private struct ContinueDetailView: View {
-    let story: ContinueStory
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MosaicSpace.large) {
-                ContinueStoryCard(story: story).frame(maxWidth: .infinity, alignment: .center)
-                Text(story.mediaLabel).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText)
-                Text(story.title).font(.system(.largeTitle, design: .serif, weight: .semibold))
-                ForEach(story.progress.detailLines, id: \.self) { Text($0).foregroundStyle(MosaicColor.secondaryText) }
-            }.padding(MosaicSpace.large)
-        }
-        .background(MosaicColor.background)
-        .navigationTitle(story.title)
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
