@@ -65,6 +65,11 @@ final class SessionStore {
         currentUser = nil; state = .signedOut
     }
 
+    func currentAccessToken() async throws -> String {
+        guard let client else { throw MosaicAPIError.unauthorized("Sign in to load your stories.") }
+        return try await client.auth.session.accessToken
+    }
+
     private func completeAuthentication(_ session: Session) async {
         guard !session.accessToken.isEmpty else {
             state = .error(OAuthFailure.completionFailed.message)

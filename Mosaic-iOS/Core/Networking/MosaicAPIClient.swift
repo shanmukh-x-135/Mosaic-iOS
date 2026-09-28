@@ -21,4 +21,4 @@ struct MosaicAPIClient: Sendable {
         return .from(code: nil, message: "Mosaic could not complete that request.", statusCode: statusCode)
     }
 }
-extension JSONDecoder { static let mosaic: JSONDecoder = { let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase; return decoder }() }
+extension JSONDecoder { static let mosaic: JSONDecoder = { let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase; decoder.dateDecodingStrategy = .iso8601; return decoder }() }

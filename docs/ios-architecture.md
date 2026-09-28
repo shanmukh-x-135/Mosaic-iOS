@@ -26,6 +26,10 @@ Physical-device smoke test: delete/reinstall the app if needed, confirm the Mosa
 
 `MosaicAPIClient` owns URL construction, request headers, async URLSession work, cancellation propagation, response decoding, and normalized errors. Authenticated calls take a Supabase access token from the auth boundary and inject `Authorization: Bearer <token>`. Views never create `URLRequest`s or attach tokens. The first proof is the documented `GET /api/me` response decoded as `CurrentUser`.
 
+## Home / Continue
+
+Home uses the documented `GET /api/me/continue?limit=8` contract through `MosaicAPIClient`. The server is the source of truth for active/resumable series, books, and games, as well as ordering and media-specific progress. The client maps the typed `ContinueItem` DTO into a Home presentation model without re-filtering items or recreating tracking rules. Artwork uses the normalized optional backdrop or poster URL; cards gracefully fall back to a native placeholder when neither is available. The Home rail intentionally caps its presentation to eight server-ordered items.
+
 ## Dependencies
 
 The only external Swift Package dependency is [supabase-swift](https://github.com/supabase/supabase-swift). UI uses SwiftUI and Observation; networking uses Foundation URLSession.

@@ -5,7 +5,7 @@ struct AppShell: View {
 
     var body: some View {
         TabView {
-            PlaceholderTab(title: "Home", symbol: "house.fill", detail: "Your active stories will appear here.").tabItem { Label("Home", systemImage: "house.fill") }
+            HomeView(session: session).tabItem { Label("Home", systemImage: "house.fill") }
             PlaceholderTab(title: "Discover", symbol: "sparkles", detail: "Discovery is coming in a later milestone.").tabItem { Label("Discover", systemImage: "sparkles") }
             PlaceholderTab(title: "Library", symbol: "books.vertical.fill", detail: "Your library will appear here.").tabItem { Label("Library", systemImage: "books.vertical.fill") }
             PlaceholderTab(title: "Search", symbol: "magnifyingglass", detail: "Search is coming in a later milestone.").tabItem { Label("Search", systemImage: "magnifyingglass") }
