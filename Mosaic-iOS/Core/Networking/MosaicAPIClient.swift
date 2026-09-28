@@ -21,4 +21,19 @@ struct MosaicAPIClient: Sendable {
         return .from(code: nil, message: "Mosaic could not complete that request.", statusCode: statusCode)
     }
 }
-extension JSONDecoder { static let mosaic: JSONDecoder = { let decoder = JSONDecoder(); decoder.keyDecodingStrategy = .convertFromSnakeCase; decoder.dateDecodingStrategy = .iso8601; return decoder }() }
+extension JSONDecoder {
+    static let mosaic: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer().decode(String.self)
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: value) { return date }
+            let standard = ISO8601DateFormatter()
+            if let date = standard.date(from: value) { return date }
+            throw DecodingError.dataCorruptedError(in: try decoder.singleValueContainer(), debugDescription: "Expected an ISO-8601 date.")
+        }
+        return decoder
+    }()
+}

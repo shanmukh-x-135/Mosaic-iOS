@@ -45,7 +45,7 @@ final class MosaicFoundationTests: XCTestCase {
 
     func testContinueDTOMapsSeriesProgressWithoutInventingDenominator() throws {
         let response = try decodeContinueResponse(#"""
-        {"items":[{"id":"tmdb:tv:1","media_type":"series","provider":"tmdb","provider_id":"1","title":"Orbit","status":"watching","last_activity_at":"2026-09-21T18:22:00Z","progress":{"watched_episodes":14,"total_episodes":null,"percent":null,"next_season_number":2,"next_episode_number":1},"next_action":{"type":"log_episode","season_number":2,"episode_number":1}}]}
+        {"items":[{"id":"tmdb:tv:1","media_type":"series","provider":"tmdb","provider_id":"1","title":"Orbit","status":"watching","last_activity_at":"2026-09-21T18:22:00.000Z","progress":{"watched_episodes":14,"total_episodes":null,"percent":null,"next_season_number":2,"next_episode_number":1},"next_action":{"type":"log_episode","season_number":2,"episode_number":1}}]}
         """#)
         let story = try XCTUnwrap(response.items.first.map(ContinueStory.init(dto:)))
         XCTAssertEqual(story.progress.detailLines, ["Next: S2E1", "14 episodes"])
