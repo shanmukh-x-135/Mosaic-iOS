@@ -131,6 +131,29 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(DetailErrorPresentation.from(MosaicAPIError.decoding("bad")), .unreadable)
     }
 
+    func testLibraryEntryMapsIdentityProgressAndRating() throws {
+        let response = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:1396","mediaType":"tv","provider":"tmdb","providerId":"1396","title":"Breaking Bad","status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":14,"totalEpisodes":62,"percent":23}}]}"#.utf8))
+        let item = try XCTUnwrap(response.items.first)
+        XCTAssertEqual(item.route, MediaDetailRoute(provider: "tmdb", mediaType: .tv, providerID: "1396"))
+        XCTAssertEqual(item.progress?.displayText, "14 / 62 episodes")
+        XCTAssertEqual(item.ratingText, "4.5 ★")
+    }
+
+    func testLibraryProgressOmitsZeroAndUnknownValues() throws {
+        let progress = try JSONDecoder.mosaic.decode(LibraryProgressDTO.self, from: Data(#"{"watchedEpisodes":0,"totalEpisodes":null,"percent":null}"#.utf8))
+        XCTAssertNil(progress.displayText)
+    }
+
+    func testLibraryFiltersAndSortsLocallyWithoutDetailFanout() async throws {
+        let items = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:movie:1","mediaType":"movie","provider":"tmdb","providerId":"1","title":"Zulu","releaseYear":2020,"status":"watched","userRating":3,"isFavorite":false,"updatedAt":"2026-09-18T10:00:00.000Z"},{"id":"igdb:game:2","mediaType":"game","provider":"igdb","providerId":"2","title":"Alpha","releaseYear":2024,"status":"playing","userRating":5,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z"}]}"#.utf8)).items
+        let model = LibraryViewModel(request: { items })
+        model.load(); await waitForHomeLoad()
+        model.mediaFilter = .games
+        XCTAssertEqual(model.visibleItems.map(\.title), ["Alpha"])
+        model.mediaFilter = .all; model.sort = .title
+        XCTAssertEqual(model.visibleItems.map(\.title), ["Alpha", "Zulu"])
+    }
+
     func testHomeErrorPresentationMapsAPIError() {
         XCTAssertEqual(HomeErrorPresentation.from(MosaicAPIError.network("offline")), .offline)
         XCTAssertEqual(HomeErrorPresentation.from(MosaicAPIError.unauthorized("expired")), .sessionExpired)

@@ -86,7 +86,7 @@ private struct ContinueSkeleton: View {
             Text("Continue Your Stories").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).padding(.horizontal, MosaicSpace.large)
             RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)
                 .fill(MosaicColor.surface)
-                .frame(width: 310, height: 390)
+                .frame(width: 282, height: 228)
                 .overlay(alignment: .bottomLeading) { VStack(alignment: .leading, spacing: 10) { Capsule().fill(Color.white.opacity(0.16)).frame(width: 70, height: 10); Capsule().fill(Color.white.opacity(0.18)).frame(width: 180, height: 22); Capsule().fill(Color.white.opacity(0.14)).frame(width: 130, height: 12) }.padding(MosaicSpace.medium) }
                 .padding(.horizontal, MosaicSpace.large)
                 .redacted(reason: .placeholder)

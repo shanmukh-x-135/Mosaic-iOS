@@ -13,7 +13,7 @@ struct SearchView: View {
             }
             .background(MosaicColor.background)
             .navigationTitle("Search")
-            .searchable(text: $model.query, prompt: "Movies, series, games, and books")
+            .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, series, games, and books")
         }
     }
 

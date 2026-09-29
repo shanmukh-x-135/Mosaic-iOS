@@ -21,8 +21,10 @@ struct MediaDetailContainer: View {
             }
         }
         .background(MosaicColor.background)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(preview.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .task { model.load() }
     }
 
@@ -54,6 +56,13 @@ struct MediaDetailPreview: Equatable, Sendable {
         artworkURL = media.backdropURL
         fallbackArtworkURL = media.posterURL
         mediaType = media.mediaType
+    }
+
+    init(library: LibraryItemDTO) {
+        title = library.title
+        artworkURL = library.backdropURL
+        fallbackArtworkURL = library.posterURL
+        mediaType = library.mediaType
     }
 }
 
@@ -145,7 +154,10 @@ private struct MediaDetailContent: View {
                 if let description = media.description, !description.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("About").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); Text(description).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true) } }
                 let available = metadata.filter { $0.value?.isEmpty == false }
                 if !available.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("Details").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); ForEach(available) { item in HStack(alignment: .firstTextBaseline) { Text(item.label).foregroundStyle(MosaicColor.secondaryText); Spacer(); Text(item.value ?? "").multilineTextAlignment(.trailing).foregroundStyle(MosaicColor.primaryText) } } } }
-            }.padding(MosaicSpace.large)
+            }
+            .padding(.horizontal, MosaicSpace.large)
+            .padding(.vertical, MosaicSpace.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -155,7 +167,6 @@ private struct DetailArtwork: View {
     var body: some View { Group { if let url = media.artworkURL { AsyncImage(url: url) { phase in switch phase { case let .success(image): image.resizable().scaledToFill(); default: fallback } } } else { fallback } }.frame(maxWidth: .infinity).clipped().accessibilityHidden(true) }
     private var fallback: some View { LinearGradient(colors: [MosaicColor.surface, MosaicColor.background], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: media.mediaType.symbolName).font(.system(size: 50, weight: .light)).foregroundStyle(MosaicColor.secondaryText)) }
 }
-private struct GenreChips: View { let genres: [String]; var body: some View { FlowLayout(spacing: MosaicSpace.small) { ForEach(genres, id: \.self) { Text($0).font(.caption.weight(.medium)).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, 10).padding(.vertical, 6).background(MosaicColor.surface, in: Capsule()) } } } }
-private struct FlowLayout: Layout { let spacing: CGFloat; init(spacing: CGFloat) { self.spacing = spacing }; func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize { let maxWidth = proposal.width ?? .infinity; var point = CGPoint.zero; var height: CGFloat = 0; for view in subviews { let size = view.sizeThatFits(.unspecified); if point.x + size.width > maxWidth, point.x > 0 { point.x = 0; point.y += height + spacing; height = 0 }; height = max(height, size.height); point.x += size.width + spacing }; return CGSize(width: maxWidth, height: point.y + height) }; func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) { var point = bounds.origin; var height: CGFloat = 0; for view in subviews { let size = view.sizeThatFits(.unspecified); if point.x + size.width > bounds.maxX, point.x > bounds.minX { point.x = bounds.minX; point.y += height + spacing; height = 0 }; view.place(at: point, proposal: ProposedViewSize(size)); height = max(height, size.height); point.x += size.width + spacing } } }
+private struct GenreChips: View { let genres: [String]; var body: some View { ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(genres, id: \.self) { Text($0).font(.caption.weight(.medium)).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, 10).padding(.vertical, 6).background(MosaicColor.surface, in: Capsule()) } }.padding(.vertical, 2) }.scrollIndicators(.hidden) } }
 private struct MediaDetailSkeleton: View { let preview: MediaDetailPreview; var body: some View { ScrollView { VStack(alignment: .leading, spacing: MosaicSpace.large) { RoundedRectangle(cornerRadius: MosaicRadius.card).fill(MosaicColor.surface).frame(height: 255); Text(preview.title).font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText); Capsule().fill(MosaicColor.surface).frame(width: 180, height: 14); Capsule().fill(MosaicColor.surface).frame(height: 14); Capsule().fill(MosaicColor.surface).frame(width: 260, height: 14) }.padding(MosaicSpace.large).redacted(reason: .placeholder) }.accessibilityLabel("Loading \(preview.title) details") } }
 private struct DetailErrorView: View { let error: DetailErrorPresentation; let retry: () -> Void; var body: some View { VStack(spacing: MosaicSpace.medium) { ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message)); if error != .notFound { Button("Try again", action: retry).buttonStyle(.borderedProminent) } }.foregroundStyle(MosaicColor.secondaryText) } }

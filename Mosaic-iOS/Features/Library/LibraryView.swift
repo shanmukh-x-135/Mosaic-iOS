@@ -1,0 +1,26 @@
+import SwiftUI
+
+struct LibraryView: View {
+    @State private var model: LibraryViewModel
+    init(session: SessionStore) { _model = State(initialValue: LibraryViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL), accessToken: { try await session.currentAccessToken() })) }
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                filterBar
+                content
+            }
+            .background(MosaicColor.background)
+            .navigationTitle("Library")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Menu { Picker("Sort", selection: $model.sort) { ForEach(LibrarySort.allCases) { Text($0.title).tag($0) } } } label: { Label("Sort", systemImage: "arrow.up.arrow.down") } } }
+            .task { model.load() }
+        }
+    }
+    private var filterBar: some View { ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(LibraryMediaFilter.allCases) { filter in Button(filter.title) { model.mediaFilter = filter }.font(.subheadline.weight(.semibold)).foregroundStyle(model.mediaFilter == filter ? MosaicColor.background : MosaicColor.primaryText).padding(.horizontal, 14).padding(.vertical, 8).background(model.mediaFilter == filter ? MosaicColor.primaryText : MosaicColor.surface, in: Capsule()).accessibilityAddTraits(model.mediaFilter == filter ? .isSelected : []) } }.padding(.horizontal, MosaicSpace.large).padding(.vertical, MosaicSpace.small) }.scrollIndicators(.hidden) }
+    @ViewBuilder private var content: some View { switch model.state { case .idle, .loading: LibrarySkeleton(); case .empty: LibraryEmpty(title: "Your Library is waiting", detail: "Track a movie, series, game, or book and it will appear here."); case .loaded: if model.visibleItems.isEmpty { LibraryEmpty(title: "Nothing here yet", detail: "Try another media type.") } else { LibraryGrid(items: model.visibleItems).refreshable { model.refresh() } }; case let .error(error): VStack(spacing: MosaicSpace.medium) { ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message)); Button("Try again", action: model.refresh).buttonStyle(.borderedProminent) } } }
+}
+
+private struct LibraryGrid: View { let items: [LibraryItemDTO]; private let columns = [GridItem(.flexible(), spacing: MosaicSpace.medium), GridItem(.flexible())]; var body: some View { ScrollView { LazyVGrid(columns: columns, spacing: MosaicSpace.large) { ForEach(items) { item in NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: { LibraryTile(item: item) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large).padding(.vertical, MosaicSpace.medium) } } }
+private struct LibraryTile: View { let item: LibraryItemDTO; var body: some View { VStack(alignment: .leading, spacing: 7) { LibraryArtwork(item: item).aspectRatio(0.68, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)); Text(item.title).font(.system(.headline, design: .serif)).foregroundStyle(MosaicColor.primaryText).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading); Text(item.statusLabel).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText).lineLimit(1); if let progress = item.progress?.displayText { Text(progress).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1) } else if let rating = item.ratingText { Text(rating).font(.caption.weight(.medium)).foregroundStyle(MosaicColor.accent) } }.accessibilityElement(children: .combine).accessibilityLabel([item.title, item.mediaType.displayName, item.statusLabel, item.progress?.displayText, item.ratingText].compactMap { $0 }.joined(separator: ", ")).accessibilityHint("Opens details") } }
+private struct LibraryArtwork: View { let item: LibraryItemDTO; var body: some View { Group { if let url = item.artworkURL { AsyncImage(url: url) { phase in switch phase { case let .success(image): image.resizable().scaledToFill(); default: fallback } } } else { fallback } }.frame(maxWidth: .infinity).clipped().accessibilityHidden(true) }; private var fallback: some View { LinearGradient(colors: [MosaicColor.surface, MosaicColor.background], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: item.mediaType.symbolName).foregroundStyle(MosaicColor.secondaryText)) } }
+private struct LibrarySkeleton: View { private let columns = [GridItem(.flexible(), spacing: MosaicSpace.medium), GridItem(.flexible())]; var body: some View { ScrollView { LazyVGrid(columns: columns, spacing: MosaicSpace.large) { ForEach(0..<6, id: \.self) { _ in VStack(alignment: .leading, spacing: 7) { RoundedRectangle(cornerRadius: MosaicRadius.control).fill(MosaicColor.surface).aspectRatio(0.68, contentMode: .fit); Capsule().fill(MosaicColor.surface).frame(height: 16); Capsule().fill(MosaicColor.surface).frame(width: 80, height: 12) }.redacted(reason: .placeholder) } }.padding(MosaicSpace.large) }.accessibilityLabel("Loading your Library") } }
+private struct LibraryEmpty: View { let title: String; let detail: String; var body: some View { ContentUnavailableView(title, systemImage: "books.vertical", description: Text(detail)).foregroundStyle(MosaicColor.secondaryText) } }

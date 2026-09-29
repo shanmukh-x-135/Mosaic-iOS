@@ -102,7 +102,7 @@ enum ContinueProgress: Equatable, Sendable {
         case let .episodes(watched, total, _, nextSeason, nextEpisode):
             var lines: [String] = []
             if let nextSeason, let nextEpisode { lines.append("Next: S\(nextSeason)E\(nextEpisode)") }
-            if let watched { lines.append(total.map { "\(watched) / \($0) episodes" } ?? "\(watched) episodes") }
+            if let watched, watched > 0 { lines.append(total.map { "\(watched) / \($0) episodes" } ?? "\(watched) episodes") }
             return lines
         case let .pages(current, total, percent):
             if let current, let total { return ["\(current) / \(total) pages"] }

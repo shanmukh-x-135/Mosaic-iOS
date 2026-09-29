@@ -31,7 +31,7 @@ struct ContinueStoryCard: View {
             }
             .padding(MosaicSpace.medium)
         }
-        .frame(width: 310, height: 390)
+        .frame(width: 282, height: 228)
         .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(story.mediaLabel), \(story.title), \(story.progress.accessibilitySummary), \(story.actionTitle)")

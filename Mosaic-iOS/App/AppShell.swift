@@ -6,33 +6,27 @@ struct AppShell: View {
     var body: some View {
         TabView {
             HomeView(session: session).tabItem { Label("Home", systemImage: "house.fill") }
-            PlaceholderTab(title: "Discover", symbol: "sparkles", detail: "Discovery is coming in a later milestone.").tabItem { Label("Discover", systemImage: "sparkles") }
-            PlaceholderTab(title: "Library", symbol: "books.vertical.fill", detail: "Your library will appear here.").tabItem { Label("Library", systemImage: "books.vertical.fill") }
+            LibraryView(session: session).tabItem { Label("Library", systemImage: "books.vertical.fill") }
             SearchView().tabItem { Label("Search", systemImage: "magnifyingglass") }
-            ProfilePlaceholder(session: session).tabItem { Label("Profile", systemImage: "person.crop.circle") }
+            AccountView(session: session).tabItem { Label("Account", systemImage: "person.crop.circle") }
         }
     }
 }
 
-private struct PlaceholderTab: View {
-    let title: String; let symbol: String; let detail: String
-    var body: some View {
-        NavigationStack { ContentUnavailableView(title, systemImage: symbol, description: Text(detail)).navigationTitle(title) }
-    }
-}
-
-private struct ProfilePlaceholder: View {
+private struct AccountView: View {
     @Bindable var session: SessionStore
     var body: some View {
         NavigationStack {
             VStack(spacing: MosaicSpace.large) {
+                Spacer(minLength: MosaicSpace.large)
                 Image("AvatarPlaceholder")
                     .resizable()
                     .scaledToFill()
                     .frame(width: 72, height: 72)
                     .clipShape(Circle())
                     .accessibilityLabel("Profile avatar")
-                Text(session.currentUser?.profile?.displayName ?? "Signed in").font(MosaicType.title)
+                Text(session.currentUser?.profile?.displayName ?? session.currentUser?.profile?.username ?? "Signed in").font(MosaicType.title)
+                if let username = session.currentUser?.profile?.username { Text("@\(username)").foregroundStyle(MosaicColor.secondaryText) }
                 if let backendError = session.backendError {
                     Text(backendError)
                         .font(.footnote)
@@ -40,7 +34,8 @@ private struct ProfilePlaceholder: View {
                         .multilineTextAlignment(.center)
                 }
                 Button("Sign Out", role: .destructive) { Task { await session.signOut() } }.buttonStyle(.bordered)
-            }.navigationTitle("Profile")
+                Spacer()
+            }.padding(MosaicSpace.large).frame(maxWidth: .infinity).background(MosaicColor.background).navigationTitle("Account")
         }
     }
 }

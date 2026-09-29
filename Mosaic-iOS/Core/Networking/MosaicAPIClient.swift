@@ -1,9 +1,18 @@
 import Foundation
+import os
+
+private let networkLogger = Logger(subsystem: "com.shanmukhpgsspersonalteam.MosaiciOS", category: "Networking")
 
 struct MosaicAPIClient: Sendable {
     let baseURL: URL; private let session: URLSession
     init(baseURL: URL, session: URLSession = .shared) { self.baseURL = baseURL; self.session = session }
     func request<T: Decodable>(_ path: String, token: String, as type: T.Type = T.self) async throws -> T {
+        let clock = ContinuousClock(); let start = clock.now
+        defer {
+        #if DEBUG
+            networkLogger.debug("Authenticated request completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
+        #endif
+        }
         var request = try makeRequest(path: path, token: token); request.httpMethod = "GET"
         do {
             let (data, response) = try await session.data(for: request)
@@ -26,6 +35,12 @@ struct MosaicAPIClient: Sendable {
         var request = URLRequest(url: url); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); request.setValue("application/json", forHTTPHeaderField: "Accept"); return request
     }
     private func perform<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
+        let clock = ContinuousClock(); let start = clock.now
+        defer {
+        #if DEBUG
+            networkLogger.debug("Public catalog request completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
+        #endif
+        }
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
