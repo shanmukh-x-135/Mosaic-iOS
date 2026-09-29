@@ -8,6 +8,11 @@ struct CatalogSearchResponse: Decodable, Sendable {
 struct CatalogFailure: Decodable, Equatable, Sendable {
     let provider: String
     let message: String
+
+    init(provider: String, message: String) {
+        self.provider = provider
+        self.message = message
+    }
 }
 
 /// The documented provider-normalized catalog union. Type-specific properties

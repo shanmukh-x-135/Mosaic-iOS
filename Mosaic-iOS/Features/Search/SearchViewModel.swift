@@ -57,9 +57,36 @@ final class SearchViewModel {
 
     init(client: MosaicAPIClient) {
         search = { query, filter in
-            var items = [URLQueryItem(name: "q", value: query)]
-            if let type = filter.catalogType { items.append(URLQueryItem(name: "type", value: type)) }
-            return try await client.publicRequest(path: "/api/catalog/search", queryItems: items, as: CatalogSearchResponse.self)
+            func request(type: String?) async throws -> CatalogSearchResponse {
+                var items = [URLQueryItem(name: "q", value: query)]
+                if let type { items.append(URLQueryItem(name: "type", value: type)) }
+                return try await client.publicRequest(path: "/api/catalog/search", queryItems: items, as: CatalogSearchResponse.self)
+            }
+            func result(for type: String) async -> Result<CatalogSearchResponse, Error> {
+                do { return .success(try await request(type: type)) }
+                catch { return .failure(error) }
+            }
+
+            guard filter == .all else { return try await request(type: filter.catalogType) }
+
+            async let movies = result(for: "movie")
+            async let series = result(for: "tv")
+            async let games = result(for: "game")
+            async let books = result(for: "book")
+            let responses = await [("movies", movies), ("series", series), ("games", games), ("books", books)]
+
+            var items = [CatalogMedia]()
+            var failures = [CatalogFailure]()
+            for response in responses {
+                switch response.1 {
+                case let .success(value):
+                    items += value.items
+                    failures += value.failures
+                case .failure:
+                    failures.append(CatalogFailure(provider: response.0, message: "This catalog source is unavailable."))
+                }
+            }
+            return CatalogSearchResponse(items: items, failures: failures)
         }
     }
 

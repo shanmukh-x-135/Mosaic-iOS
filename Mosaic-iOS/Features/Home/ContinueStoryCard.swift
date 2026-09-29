@@ -44,15 +44,10 @@ private struct StoryArtwork: View {
 
     var body: some View {
         Group {
-            if let url = story.artworkURL ?? story.fallbackArtworkURL {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case let .success(image): image.resizable().scaledToFill()
-                    case .empty: ArtworkPlaceholder(symbol: storySymbol)
-                    case .failure: ArtworkPlaceholder(symbol: storySymbol)
-                    @unknown default: ArtworkPlaceholder(symbol: storySymbol)
-                    }
-                }
+            if let artworkURL = story.artworkURL {
+                primaryArtwork(url: artworkURL)
+            } else if let fallbackURL = story.fallbackArtworkURL {
+                artwork(url: fallbackURL)
             } else {
                 ArtworkPlaceholder(symbol: storySymbol)
             }
@@ -64,6 +59,31 @@ private struct StoryArtwork: View {
 
     private var storySymbol: String {
         switch story.mediaType { case .series: "tv"; case .book: "book.closed"; case .game: "gamecontroller" }
+    }
+
+    @ViewBuilder private func primaryArtwork(url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case let .success(image): image.resizable().scaledToFill()
+            case .failure:
+                if let fallbackURL = story.fallbackArtworkURL, fallbackURL != url {
+                    artwork(url: fallbackURL)
+                } else {
+                    ArtworkPlaceholder(symbol: storySymbol)
+                }
+            case .empty: ArtworkPlaceholder(symbol: storySymbol)
+            @unknown default: ArtworkPlaceholder(symbol: storySymbol)
+            }
+        }
+    }
+
+    @ViewBuilder private func artwork(url: URL) -> some View {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case let .success(image): image.resizable().scaledToFill()
+            default: ArtworkPlaceholder(symbol: storySymbol)
+            }
+        }
     }
 }
 

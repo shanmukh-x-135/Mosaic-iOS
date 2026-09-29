@@ -27,6 +27,7 @@ struct MosaicAPIClient: Sendable {
         components?.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components?.url else { throw MosaicAPIError.invalidResponse }
         var request = URLRequest(url: url)
+        request.timeoutInterval = 25
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return try await perform(request, as: type)
     }

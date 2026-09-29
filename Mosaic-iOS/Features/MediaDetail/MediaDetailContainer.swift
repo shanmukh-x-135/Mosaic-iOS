@@ -141,23 +141,25 @@ private struct MediaDetailContent: View {
     let media: CatalogMedia
     let metadata: [MetadataLine]
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MosaicSpace.large) {
-                DetailArtwork(media: media).frame(height: 255).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-                VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                    Label(media.mediaType.displayName, systemImage: media.mediaType.symbolName).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText)
-                    Text(media.title).font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText).fixedSize(horizontal: false, vertical: true)
-                    if let subtitle = media.subtitle ?? media.releaseContext { Text(subtitle).font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
-                    if let rating = media.communityRating { Text("Public rating \(rating.formatted(.number.precision(.fractionLength(1))))").font(.subheadline.weight(.medium)).foregroundStyle(MosaicColor.accent) }
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: MosaicSpace.large) {
+                    DetailArtwork(media: media).frame(height: 255).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
+                    VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                        Label(media.mediaType.displayName, systemImage: media.mediaType.symbolName).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText)
+                        Text(media.title).font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText).fixedSize(horizontal: false, vertical: true)
+                        if let subtitle = media.subtitle ?? media.releaseContext { Text(subtitle).font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
+                        if let rating = media.communityRating { Text("Public rating \(rating.formatted(.number.precision(.fractionLength(1))))").font(.subheadline.weight(.medium)).foregroundStyle(MosaicColor.accent) }
+                    }
+                    if !media.genres.isEmpty { GenreChips(genres: media.genres) }
+                    if let description = media.description, !description.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("About").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); Text(description).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true) } }
+                    let available = metadata.filter { $0.value?.isEmpty == false }
+                    if !available.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("Details").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); ForEach(available) { item in HStack(alignment: .firstTextBaseline) { Text(item.label).foregroundStyle(MosaicColor.secondaryText); Spacer(); Text(item.value ?? "").multilineTextAlignment(.trailing).foregroundStyle(MosaicColor.primaryText) } } } }
                 }
-                if !media.genres.isEmpty { GenreChips(genres: media.genres) }
-                if let description = media.description, !description.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("About").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); Text(description).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true) } }
-                let available = metadata.filter { $0.value?.isEmpty == false }
-                if !available.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("Details").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); ForEach(available) { item in HStack(alignment: .firstTextBaseline) { Text(item.label).foregroundStyle(MosaicColor.secondaryText); Spacer(); Text(item.value ?? "").multilineTextAlignment(.trailing).foregroundStyle(MosaicColor.primaryText) } } } }
+                .frame(width: max(0, proxy.size.width - (MosaicSpace.large * 2)), alignment: .leading)
+                .padding(.horizontal, MosaicSpace.large)
+                .padding(.vertical, MosaicSpace.large)
             }
-            .padding(.horizontal, MosaicSpace.large)
-            .padding(.vertical, MosaicSpace.large)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
