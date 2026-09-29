@@ -5,6 +5,19 @@ struct CatalogSearchResponse: Decodable, Sendable {
     let failures: [CatalogFailure]
 }
 
+struct CatalogDiscoverResponse: Decodable, Sendable {
+    let items: [CatalogMedia]
+    let failures: [CatalogFailure]
+    let sections: [CatalogDiscoverySection]
+}
+
+struct CatalogDiscoverySection: Decodable, Sendable, Identifiable {
+    let id: String
+    let label: String
+    let mediaType: CatalogMediaType
+    let items: [CatalogMedia]
+}
+
 struct CatalogFailure: Decodable, Equatable, Sendable {
     let provider: String
     let message: String

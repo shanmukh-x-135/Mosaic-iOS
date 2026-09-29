@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     @State private var model: HomeViewModel
+    @State private var discovery = DiscoverViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
 
     init(session: SessionStore) {
         _model = State(initialValue: HomeViewModel(
@@ -12,17 +13,16 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: MosaicSpace.large) {
-                    HomeHeader()
-                    content
-                }
-                .padding(.vertical, MosaicSpace.medium)
+            MosaicScreen {
+                HomeHeader()
+                if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
+                content
+                if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
             }
             .background(MosaicColor.background)
             .navigationBarHidden(true)
-            .task { model.load() }
-            .refreshable { model.retry() }
+            .task { model.load(); discovery.load() }
+            .refreshable { model.retry(); discovery.retry() }
         }
     }
 
@@ -44,8 +44,8 @@ private struct HomeHeader: View {
     var body: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(greeting).font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-                Text("Your stories").font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText)
+                MosaicEyebrow(title: greeting)
+                Text("Your stories").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
             }
             Spacer()
             Image("MosaicEmblem").resizable().scaledToFit().frame(width: 34, height: 34).accessibilityLabel("Mosaic")
@@ -58,7 +58,7 @@ private struct ContinueRail: View {
     let stories: [ContinueStory]
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            Text("Continue Your Stories").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).padding(.horizontal, MosaicSpace.large)
+            MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
             ScrollView(.horizontal) {
                 LazyHStack(spacing: MosaicSpace.medium) {
                     ForEach(stories) { story in
@@ -83,7 +83,7 @@ private struct ContinueSkeleton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            Text("Continue Your Stories").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).padding(.horizontal, MosaicSpace.large)
+            MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
             RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)
                 .fill(MosaicColor.surface)
                 .frame(width: 282, height: 228)
@@ -93,6 +93,34 @@ private struct ContinueSkeleton: View {
                 .accessibilityLabel("Loading your stories")
         }
         .opacity(reduceMotion ? 1 : 0.88)
+    }
+}
+
+private struct HomeFeaturedStory: View {
+    let media: CatalogMedia
+    var body: some View {
+        NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: {
+            ZStack(alignment: .bottomLeading) {
+                MosaicArtwork(url: media.backdropURL ?? media.posterURL, symbol: media.mediaType.symbolName)
+                LinearGradient(colors: [.clear, MosaicColor.background.opacity(0.98)], startPoint: .top, endPoint: .bottom)
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    MosaicEyebrow(title: "Discovery pick")
+                    Text(media.title).font(MosaicType.hero).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
+                    HStack(spacing: MosaicSpace.small) { if let year = media.releaseYear { Text(String(year)) }; if let genre = media.genres.first { Text(genre) }; if let rating = media.communityRating { MosaicRating(value: rating) } }.font(.footnote).foregroundStyle(MosaicColor.secondaryText)
+                    Label("View story", systemImage: "play.fill").font(.subheadline.weight(.bold)).foregroundStyle(MosaicColor.background).padding(.horizontal, 14).padding(.vertical, 10).background(MosaicColor.primaryText, in: Capsule())
+                }.padding(MosaicSpace.large)
+            }.frame(height: 360).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)).padding(.horizontal, MosaicSpace.large)
+        }.buttonStyle(.plain)
+    }
+}
+
+private struct HomeDiscoveryRail: View {
+    let items: [CatalogMedia]
+    var body: some View {
+        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+            MosaicSectionHeader("Worth a closer look", eyebrow: "A fresh discovery")
+            ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large) }.scrollIndicators(.hidden)
+        }
     }
 }
 

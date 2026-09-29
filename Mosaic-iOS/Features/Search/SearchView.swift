@@ -8,6 +8,13 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 4) {
+                    MosaicEyebrow(title: "Across every medium")
+                    Text("Search").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, MosaicSpace.large)
+                .padding(.top, MosaicSpace.medium)
                 filterBar
                 content
             }
@@ -21,11 +28,9 @@ struct SearchView: View {
         ScrollView(.horizontal) {
             HStack(spacing: MosaicSpace.small) {
                 ForEach(CatalogFilter.allCases) { filter in
-                    Button(filter.title) { model.filter = filter }
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(model.filter == filter ? MosaicColor.background : MosaicColor.primaryText)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(model.filter == filter ? MosaicColor.primaryText : MosaicColor.surface, in: Capsule())
+                    Button { model.filter = filter } label: {
+                        MosaicFilterChip(title: filter.title, selected: model.filter == filter)
+                    }
                         .accessibilityAddTraits(model.filter == filter ? .isSelected : [])
                 }
             }
@@ -62,16 +67,19 @@ private struct SearchResults: View {
     let items: [CatalogMedia]
     let partialFailure: String?
     var body: some View {
-        List {
-            if let partialFailure { Text(partialFailure).font(.footnote).foregroundStyle(MosaicColor.secondaryText).listRowBackground(Color.clear) }
-            ForEach(items) { item in
-                NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(media: item)) } label: { SearchResultRow(item: item) }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparatorTint(MosaicColor.surface)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: MosaicSpace.small) {
+                if let partialFailure { Text(partialFailure).font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large) }
+                Text("\(items.count) results").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large).padding(.top, MosaicSpace.small)
+                ForEach(items) { item in
+                    NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(media: item)) } label: { SearchResultRow(item: item) }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, MosaicSpace.large)
+                    Divider().overlay(MosaicColor.border).padding(.leading, MosaicSpace.large + 74)
+                }
             }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
+            .padding(.vertical, MosaicSpace.small)
+        }.scrollIndicators(.hidden)
     }
 }
 
@@ -79,7 +87,7 @@ private struct SearchResultRow: View {
     let item: CatalogMedia
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
-            SearchArtwork(item: item).frame(width: 58, height: 82).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
+            MosaicArtwork(url: item.posterURL ?? item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 58, height: 82).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
                 Text(item.resultMetadata).font(.subheadline).foregroundStyle(MosaicColor.secondaryText).lineLimit(2)
@@ -93,27 +101,8 @@ private struct SearchResultRow: View {
     }
 }
 
-private struct SearchArtwork: View {
-    let item: CatalogMedia
-    var body: some View {
-        Group {
-            if let url = item.posterURL ?? item.backdropURL {
-                AsyncImage(url: url) { phase in
-                    switch phase { case let .success(image): image.resizable().scaledToFill(); default: fallback }
-                }
-            } else { fallback }
-        }.clipped().accessibilityHidden(true)
-    }
-    private var fallback: some View { LinearGradient(colors: [MosaicColor.surface, MosaicColor.background], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: item.mediaType.symbolName).foregroundStyle(MosaicColor.secondaryText)) }
-}
-
 private struct SearchSkeleton: View {
     var body: some View {
-        List(0..<6, id: \.self) { _ in
-            HStack(spacing: MosaicSpace.medium) {
-                RoundedRectangle(cornerRadius: MosaicRadius.control).fill(MosaicColor.surface).frame(width: 58, height: 82)
-                VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }
-            }.redacted(reason: .placeholder).listRowBackground(Color.clear)
-        }.listStyle(.plain).scrollContentBackground(.hidden).accessibilityLabel("Searching catalog")
+        ScrollView { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicSpace.large) } }.padding(.top, MosaicSpace.medium) }.accessibilityLabel("Searching catalog")
     }
 }

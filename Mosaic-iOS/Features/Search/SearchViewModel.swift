@@ -62,31 +62,10 @@ final class SearchViewModel {
                 if let type { items.append(URLQueryItem(name: "type", value: type)) }
                 return try await client.publicRequest(path: "/api/catalog/search", queryItems: items, as: CatalogSearchResponse.self)
             }
-            func result(for type: String) async -> Result<CatalogSearchResponse, Error> {
-                do { return .success(try await request(type: type)) }
-                catch { return .failure(error) }
-            }
-
-            guard filter == .all else { return try await request(type: filter.catalogType) }
-
-            async let movies = result(for: "movie")
-            async let series = result(for: "tv")
-            async let games = result(for: "game")
-            async let books = result(for: "book")
-            let responses = await [("movies", movies), ("series", series), ("games", games), ("books", books)]
-
-            var items = [CatalogMedia]()
-            var failures = [CatalogFailure]()
-            for response in responses {
-                switch response.1 {
-                case let .success(value):
-                    items += value.items
-                    failures += value.failures
-                case .failure:
-                    failures.append(CatalogFailure(provider: response.0, message: "This catalog source is unavailable."))
-                }
-            }
-            return CatalogSearchResponse(items: items, failures: failures)
+            // The catalog endpoint already fans out to its providers for an unfiltered
+            // request. One bounded request avoids four competing connections on a
+            // physical device and preserves the server's partial-failure envelope.
+            return try await request(type: filter.catalogType)
         }
     }
 

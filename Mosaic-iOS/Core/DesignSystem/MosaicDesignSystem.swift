@@ -1,13 +1,82 @@
 import SwiftUI
 
 enum MosaicColor {
-    static let background = Color(red: 0.045, green: 0.05, blue: 0.075)
-    static let surface = Color.white.opacity(0.10)
-    static let primaryText = Color.white
-    static let secondaryText = Color.white.opacity(0.66)
-    static let accent = Color(red: 0.60, green: 0.73, blue: 1.0)
+    static let background = Color(red: 0.027, green: 0.035, blue: 0.047)
+    static let elevated = Color(red: 0.055, green: 0.067, blue: 0.09)
+    static let surface = Color(red: 0.09, green: 0.105, blue: 0.135)
+    static let primaryText = Color(red: 0.96, green: 0.97, blue: 0.99)
+    static let secondaryText = Color(red: 0.67, green: 0.70, blue: 0.77)
+    static let mutedText = Color(red: 0.45, green: 0.48, blue: 0.55)
+    static let accent = Color(red: 0.47, green: 0.67, blue: 0.98)
+    static let rating = Color(red: 0.98, green: 0.75, blue: 0.32)
+    static let border = Color.white.opacity(0.10)
 }
 
-enum MosaicSpace { static let small: CGFloat = 8; static let medium: CGFloat = 16; static let large: CGFloat = 24 }
-enum MosaicRadius { static let card: CGFloat = 18; static let control: CGFloat = 12 }
-enum MosaicType { static let wordmark = Font.system(size: 26, weight: .bold, design: .rounded); static let title = Font.system(.title2, design: .rounded, weight: .semibold); static let body = Font.body }
+enum MosaicSpace { static let xSmall: CGFloat = 6; static let small: CGFloat = 10; static let medium: CGFloat = 16; static let large: CGFloat = 24; static let xLarge: CGFloat = 36 }
+enum MosaicRadius { static let media: CGFloat = 16; static let card: CGFloat = 20; static let control: CGFloat = 14 }
+enum MosaicType {
+    static let wordmark = Font.system(size: 25, weight: .bold, design: .rounded)
+    static let display = Font.system(size: 34, weight: .semibold, design: .serif)
+    static let hero = Font.system(size: 39, weight: .semibold, design: .serif)
+    static let title = Font.system(.title2, design: .rounded, weight: .semibold)
+    static let section = Font.system(.title3, design: .rounded, weight: .bold)
+    static let body = Font.body
+    static let metadata = Font.footnote
+}
+
+struct MosaicScreen<Content: View>: View {
+    @ViewBuilder var content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View { ScrollView { VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }.padding(.vertical, MosaicSpace.large) }.background(MosaicColor.background) }
+}
+
+struct MosaicEyebrow: View {
+    let title: String
+    var body: some View { Text(title.uppercased()).font(.caption2.weight(.bold)).tracking(1.2).foregroundStyle(MosaicColor.accent) }
+}
+
+struct MosaicSectionHeader: View {
+    let eyebrow: String?
+    let title: String
+    let action: String?
+    let actionHandler: (() -> Void)?
+    init(_ title: String, eyebrow: String? = nil, action: String? = nil, actionHandler: (() -> Void)? = nil) { self.title = title; self.eyebrow = eyebrow; self.action = action; self.actionHandler = actionHandler }
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: MosaicSpace.medium) {
+            VStack(alignment: .leading, spacing: 4) { if let eyebrow { MosaicEyebrow(title: eyebrow) }; Text(title).font(MosaicType.section).foregroundStyle(MosaicColor.primaryText) }
+            Spacer(minLength: 8)
+            if let action, let actionHandler { Button(action, action: actionHandler).font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.accent) }
+        }.padding(.horizontal, MosaicSpace.large)
+    }
+}
+
+struct MosaicFilterChip: View {
+    let title: String
+    let selected: Bool
+    var body: some View { Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(selected ? MosaicColor.background : MosaicColor.primaryText).padding(.horizontal, 14).padding(.vertical, 8).background(selected ? MosaicColor.primaryText : MosaicColor.surface, in: Capsule()) }
+}
+
+struct MosaicRating: View {
+    let value: Double
+    var body: some View { Label(value.formatted(.number.precision(.fractionLength(1))), systemImage: "star.fill").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.rating) }
+}
+
+struct MosaicGlassControl<Content: View>: View {
+    @ViewBuilder var content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
+    var body: some View { content.padding(.horizontal, 12).padding(.vertical, 9).background(.thinMaterial, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)).overlay(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous).stroke(MosaicColor.border)) }
+}
+
+struct MosaicSkeleton: View {
+    var aspectRatio: CGFloat = 16 / 9
+    var body: some View { RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous).fill(MosaicColor.surface).aspectRatio(aspectRatio, contentMode: .fit).redacted(reason: .placeholder) }
+}
+
+struct MosaicArtwork: View {
+    let url: URL?
+    let symbol: String
+    var body: some View {
+        Group { if let url { AsyncImage(url: url) { phase in if case let .success(image) = phase { image.resizable().scaledToFill() } else { fallback } } } else { fallback } }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped().accessibilityHidden(true)
+    }
+    private var fallback: some View { LinearGradient(colors: [MosaicColor.surface, MosaicColor.elevated], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: symbol).foregroundStyle(MosaicColor.secondaryText)) }
+}
