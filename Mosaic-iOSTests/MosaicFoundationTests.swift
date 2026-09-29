@@ -69,8 +69,66 @@ final class MosaicFoundationTests: XCTestCase {
     func testContinueStoryBuildsStableCatalogDetailRoute() throws {
         let story = try XCTUnwrap(decodeContinueResponse(#"{"items":[{"id":"tmdb:tv:1396","media_type":"series","provider":"tmdb","provider_id":"1396","title":"Breaking Bad","status":"watching","last_activity_at":null,"progress":{"watched_episodes":14,"total_episodes":62,"percent":23},"next_action":{"type":"log_episode"}}]}"#).items.first.map(ContinueStory.init(dto:)))
 
-        XCTAssertEqual(story.detailRoute, MediaDetailRoute(provider: "tmdb", mediaType: .series, providerID: "1396"))
+        XCTAssertEqual(story.detailRoute, MediaDetailRoute(provider: "tmdb", mediaType: .tv, providerID: "1396"))
         XCTAssertEqual(story.detailRoute.catalogPath, "/api/catalog/tmdb/tv/1396")
+    }
+
+    func testCatalogSearchDecodesEveryMediaTypeAndUsesStableIdentity() throws {
+        let response = try decodeCatalogSearch(#"{"items":[{"provider":"tmdb","providerId":"1","mediaType":"movie","title":"Dune","posterUrl":"https://example.com/movie.jpg","genres":["Science Fiction"],"runtimeMinutes":155},{"provider":"tmdb","providerId":"2","mediaType":"tv","title":"The Last of Us","genres":[],"seasonCount":1,"episodeCount":9},{"provider":"igdb","providerId":"3","mediaType":"game","title":"Hades","genres":["Roguelike"],"platforms":["Switch"],"developer":"Supergiant"},{"provider":"googlebooks","providerId":"4","mediaType":"book","title":"Dune","genres":[],"authors":["Frank Herbert"],"pageCount":688}],"failures":[]}"#)
+        XCTAssertEqual(response.items.map(\.mediaType), [.movie, .tv, .game, .book])
+        XCTAssertEqual(response.items[0].route, MediaDetailRoute(provider: "tmdb", mediaType: .movie, providerID: "1"))
+        XCTAssertEqual(response.items[0].artworkURL?.absoluteString, "https://example.com/movie.jpg")
+        XCTAssertEqual(response.items[2].resultMetadata, "Game · Switch")
+        XCTAssertEqual(response.items[3].resultMetadata, "Book · Frank Herbert")
+    }
+
+    func testCatalogDetailOptionalFieldsAndArtworkFallback() throws {
+        let media = try JSONDecoder.mosaic.decode(CatalogMedia.self, from: Data(#"{"provider":"googlebooks","providerId":"book-1","mediaType":"book","title":"A Long Book","genres":[],"authors":[]}"#.utf8))
+        XCTAssertNil(media.backdropURL)
+        XCTAssertNil(media.posterURL)
+        XCTAssertNil(media.artworkURL)
+        XCTAssertNil(media.pageCount)
+        XCTAssertEqual(media.authors, [])
+    }
+
+    func testSearchFilterMapsToDocumentedCatalogTypes() {
+        XCTAssertNil(CatalogFilter.all.catalogType)
+        XCTAssertEqual(CatalogFilter.movies.catalogType, "movie")
+        XCTAssertEqual(CatalogFilter.series.catalogType, "tv")
+        XCTAssertEqual(CatalogFilter.games.catalogType, "game")
+        XCTAssertEqual(CatalogFilter.books.catalogType, "book")
+    }
+
+    func testSearchNormalizesWhitespaceAndHandlesEmptyResults() async throws {
+        let empty = try decodeCatalogSearch(#"{"items":[],"failures":[]}"#)
+        let model = SearchViewModel(search: { query, filter in
+            XCTAssertEqual(query, "Dune")
+            XCTAssertEqual(filter, .all)
+            return empty
+        })
+        model.query = "  Dune  "
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(model.state, .empty(partialFailure: nil))
+        model.query = " "
+        XCTAssertEqual(model.state, .noQuery)
+    }
+
+    func testSearchProtectsAgainstStaleResults() async throws {
+        let responder = SearchResponder()
+        let model = SearchViewModel(search: { query, _ in await responder.response(for: query) })
+        model.query = "Du"
+        try await Task.sleep(for: .milliseconds(375))
+        model.query = "Dune"
+        try await Task.sleep(for: .milliseconds(950))
+        guard case let .results(items, _) = model.state else { return XCTFail("Expected current results") }
+        XCTAssertEqual(items.first?.title, "Dune")
+    }
+
+    func testSearchErrorAndDetailErrorPresentation() {
+        XCTAssertEqual(SearchErrorPresentation.from(MosaicAPIError.network("offline")), .offline)
+        XCTAssertEqual(SearchErrorPresentation.from(MosaicAPIError.providerUnavailable("down")), .unavailable)
+        XCTAssertEqual(DetailErrorPresentation.from(MosaicAPIError.notFound("gone")), .notFound)
+        XCTAssertEqual(DetailErrorPresentation.from(MosaicAPIError.decoding("bad")), .unreadable)
     }
 
     func testHomeErrorPresentationMapsAPIError() {
@@ -99,7 +157,19 @@ final class MosaicFoundationTests: XCTestCase {
         try JSONDecoder.mosaic.decode(ContinueResponseDTO.self, from: Data(json.utf8))
     }
 
+    private func decodeCatalogSearch(_ json: String) throws -> CatalogSearchResponse {
+        try JSONDecoder.mosaic.decode(CatalogSearchResponse.self, from: Data(json.utf8))
+    }
+
     private func waitForHomeLoad() async {
         for _ in 0..<8 { await Task.yield() }
+    }
+}
+
+private actor SearchResponder {
+    func response(for query: String) async -> CatalogSearchResponse {
+        if query == "Du" { try? await Task.sleep(for: .milliseconds(700)) }
+        let title = query == "Du" ? "Stale" : "Dune"
+        return try! JSONDecoder.mosaic.decode(CatalogSearchResponse.self, from: Data("{\"items\":[{\"provider\":\"tmdb\",\"providerId\":\"1\",\"mediaType\":\"movie\",\"title\":\"\(title)\",\"genres\":[]}],\"failures\":[]}".utf8))
     }
 }

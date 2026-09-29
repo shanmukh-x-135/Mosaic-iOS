@@ -19,21 +19,20 @@ struct MediaDetailRoute: Hashable, Sendable {
     }
 }
 
-enum CatalogMediaType: String, Hashable, Sendable {
+enum CatalogMediaType: String, Hashable, Decodable, Sendable {
     case movie
-    case series
+    case tv
     case game
     case book
 
-    /// The catalog contract calls television series `tv` in URL paths.
-    var catalogPathComponent: String { self == .series ? "tv" : rawValue }
+    var catalogPathComponent: String { rawValue }
 
-    var displayName: String { rawValue.capitalized }
+    var displayName: String { self == .tv ? "Series" : rawValue.capitalized }
 
     var symbolName: String {
         switch self {
         case .movie: "film"
-        case .series: "tv"
+        case .tv: "tv"
         case .game: "gamecontroller"
         case .book: "book.closed"
         }

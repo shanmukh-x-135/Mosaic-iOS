@@ -85,7 +85,7 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
 extension CatalogMediaType {
     init(_ continueType: ContinueMediaType) {
         switch continueType {
-        case .series: self = .series
+        case .series: self = .tv
         case .book: self = .book
         case .game: self = .game
         }

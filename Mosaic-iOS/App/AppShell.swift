@@ -8,7 +8,7 @@ struct AppShell: View {
             HomeView(session: session).tabItem { Label("Home", systemImage: "house.fill") }
             PlaceholderTab(title: "Discover", symbol: "sparkles", detail: "Discovery is coming in a later milestone.").tabItem { Label("Discover", systemImage: "sparkles") }
             PlaceholderTab(title: "Library", symbol: "books.vertical.fill", detail: "Your library will appear here.").tabItem { Label("Library", systemImage: "books.vertical.fill") }
-            PlaceholderTab(title: "Search", symbol: "magnifyingglass", detail: "Search is coming in a later milestone.").tabItem { Label("Search", systemImage: "magnifyingglass") }
+            SearchView().tabItem { Label("Search", systemImage: "magnifyingglass") }
             ProfilePlaceholder(session: session).tabItem { Label("Profile", systemImage: "person.crop.circle") }
         }
     }
