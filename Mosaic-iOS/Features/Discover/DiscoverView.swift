@@ -65,38 +65,40 @@ private struct DiscoverContent: View {
     private var spotlight: CatalogMedia? { sections.flatMap(\.items).first ?? response.items.first }
 
     var body: some View {
-        MosaicScreen {
-            VStack(alignment: .leading, spacing: 4) {
-                MosaicEyebrow(title: "Live catalogs")
-                Text("Discover").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-            }
-            .padding(.horizontal, MosaicLayout.screenMargin)
-            if let spotlight { DiscoverHero(media: spotlight) }
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
                 VStack(alignment: .leading, spacing: 4) {
-                    MosaicEyebrow(title: "Editorial discovery")
-                    Text("Find your next obsession").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-                    Text("Live catalogs, shaped around the stories you keep coming back to.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-                }.padding(.horizontal, MosaicSpace.large)
-                ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(CatalogFilter.allCases) { item in Button { filter = item } label: { MosaicFilterChip(title: item.title, selected: item == filter) } } }.padding(.horizontal, MosaicSpace.large) }.scrollIndicators(.hidden)
-            }
-            if !genres.isEmpty {
-                VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                    MosaicSectionHeader("Browse by genre", eyebrow: "Find your next mood")
-                    ScrollView(.horizontal) {
-                        HStack(spacing: MosaicSpace.small) {
-                            Button { selectedGenre = nil } label: { MosaicFilterChip(title: "All genres", selected: selectedGenre == nil) }
-                            ForEach(genres, id: \.self) { genre in
-                                Button { selectedGenre = selectedGenre == genre ? nil : genre } label: { MosaicFilterChip(title: genre, selected: selectedGenre == genre) }
-                            }
-                        }.padding(.horizontal, MosaicLayout.screenMargin)
-                    }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
+                    MosaicEyebrow(title: "Live catalogs")
+                    Text("Discover").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+                }.padding(.horizontal, MosaicLayout.screenMargin)
+                if let spotlight { DiscoverHero(media: spotlight) }
+                VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        MosaicEyebrow(title: "Editorial discovery")
+                        Text("Find your next obsession").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+                        Text("Live catalogs, shaped around the stories you keep coming back to.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
+                    }.padding(.horizontal, MosaicLayout.screenMargin)
+                    ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(CatalogFilter.allCases) { item in Button { filter = item } label: { MosaicFilterChip(title: item.title, selected: item == filter) } } }.padding(.horizontal, MosaicLayout.screenMargin) }.scrollIndicators(.hidden)
                 }
+                if !genres.isEmpty {
+                    VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                        MosaicSectionHeader("Browse by genre", eyebrow: "Find your next mood")
+                        ScrollView(.horizontal) {
+                            HStack(spacing: MosaicSpace.small) {
+                                Button { selectedGenre = nil } label: { MosaicFilterChip(title: "All genres", selected: selectedGenre == nil) }
+                                ForEach(genres, id: \.self) { genre in
+                                    Button { selectedGenre = selectedGenre == genre ? nil : genre } label: { MosaicFilterChip(title: genre, selected: selectedGenre == genre) }
+                                }
+                            }
+                            .padding(.horizontal, MosaicLayout.screenMargin)
+                        }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
+                    }
+                }
+                if !response.failures.isEmpty { Text("Some catalog sources are temporarily unavailable. Showing the stories we found.").font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicLayout.screenMargin) }
+                ForEach(sections) { section in DiscoverRail(section: section) }
             }
-            if !response.failures.isEmpty { Text("Some catalog sources are temporarily unavailable. Showing the stories we found.").font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large) }
-            ForEach(sections) { section in
-                DiscoverRail(section: section)
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, MosaicSpace.large)
         }
     }
 }
@@ -116,7 +118,7 @@ private struct DiscoverHero: View {
                     Label("View story", systemImage: "play.fill").font(.subheadline.weight(.bold)).foregroundStyle(MosaicColor.background).padding(.horizontal, 14).padding(.vertical, 10).background(MosaicColor.primaryText, in: Capsule())
                 }.padding(MosaicSpace.large)
             }
-            .frame(height: 390)
+            .frame(height: 230)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
             .padding(.horizontal, MosaicLayout.screenMargin)

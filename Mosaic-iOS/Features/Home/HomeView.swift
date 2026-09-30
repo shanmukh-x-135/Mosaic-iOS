@@ -19,13 +19,17 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            MosaicScreen {
-                HomeHeader()
-                if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
-                content
-                if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
-                if case .loaded = library.state { HomeSavedRail(items: library.items) }
-                if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
+                    HomeHeader()
+                    if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
+                    content
+                    if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
+                    if case .loaded = library.state { HomeSavedRail(items: library.items) }
+                    if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, MosaicSpace.large)
             }
             .background(MosaicColor.background)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() } }
@@ -58,7 +62,7 @@ private struct HomeHeader: View {
             Spacer()
             Image("MosaicEmblem").resizable().scaledToFit().frame(width: 34, height: 34).accessibilityLabel("Mosaic")
         }
-        .padding(.horizontal, MosaicSpace.large)
+        .padding(.horizontal, MosaicLayout.screenMargin)
     }
 }
 
@@ -121,7 +125,7 @@ private struct HomeFeaturedStory: View {
                 }.padding(MosaicSpace.large)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: MosaicLayout.backdropHeight)
+            .frame(height: 230)
             .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
             .padding(.horizontal, MosaicLayout.screenMargin)
         }.buttonStyle(.plain)
