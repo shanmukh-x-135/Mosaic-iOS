@@ -199,10 +199,10 @@ final class MosaicFoundationTests: XCTestCase {
     }
 
     func testLibraryEntryMapsIdentityProgressAndRating() throws {
-        let response = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:1396","mediaType":"tv","provider":"tmdb","providerId":"1396","title":"Breaking Bad","status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":14,"totalEpisodes":62,"percent":23}}]}"#.utf8))
+        let response = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:1396","mediaType":"tv","provider":"tmdb","providerId":"1396","title":"Breaking Bad","status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":14,"totalEpisodes":62,"percent":23,"nextSeasonNumber":2,"nextEpisodeNumber":1}}]}"#.utf8))
         let item = try XCTUnwrap(response.items.first)
         XCTAssertEqual(item.route, MediaDetailRoute(provider: "tmdb", mediaType: .tv, providerID: "1396"))
-        XCTAssertEqual(item.progress?.displayText, "14 / 62 episodes")
+        XCTAssertEqual(item.progress?.displayText, "Next S2E1 · 14 / 62 episodes")
         XCTAssertEqual(item.ratingText, "4.5 ★")
     }
 

@@ -35,12 +35,19 @@ struct LibraryProgressDTO: Decodable, Equatable, Sendable {
     let totalPages: Int?
     let playtimeMinutes: Int?
     let percent: Double?
+    let nextSeasonNumber: Int?
+    let nextEpisodeNumber: Int?
 
     var displayText: String? {
-        if let watchedEpisodes, watchedEpisodes > 0 { return totalEpisodes.map { "\(watchedEpisodes) / \($0) episodes" } ?? "\(watchedEpisodes) episodes" }
+        if let watchedEpisodes, watchedEpisodes > 0 {
+            var values = [totalEpisodes.map { "\(watchedEpisodes) / \($0) episodes" } ?? "\(watchedEpisodes) episodes"]
+            if let nextSeasonNumber, let nextEpisodeNumber { values.insert("Next S\(nextSeasonNumber)E\(nextEpisodeNumber)", at: 0) }
+            return values.joined(separator: " · ")
+        }
         if let currentPage, currentPage > 0 { return totalPages.map { "\(currentPage) / \($0) pages" } ?? "Page \(currentPage)" }
         if let playtimeMinutes, playtimeMinutes > 0 { let hours = playtimeMinutes / 60; return hours > 0 ? "\(hours)h played" : "\(playtimeMinutes)m played" }
         if let percent, percent > 0 { return "\(Int(percent.rounded()))%" }
+        if let nextSeasonNumber, let nextEpisodeNumber { return "Next S\(nextSeasonNumber)E\(nextEpisodeNumber)" }
         return nil
     }
 }
