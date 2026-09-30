@@ -201,6 +201,10 @@ private struct DetailTrackingActions: View {
                     ForEach(libraryStatuses, id: \.self) { status in
                         Button(status.replacingOccurrences(of: "_", with: " ").capitalized) { save(.library(media, status: status, isFavorite: personal.item?.isFavorite)) }
                     }
+                    if personal.item != nil {
+                        Divider()
+                        Button("Remove from Library", role: .destructive) { save(.removeLibrary(media)) }
+                    }
                 } label: { Label("Library", systemImage: "books.vertical") }
                     .buttonStyle(.bordered)
                     .disabled(isSaving)
@@ -397,6 +401,7 @@ struct DetailMutation: Encodable {
 
     static func rating(_ media: CatalogMedia, _ value: Double?) -> Self { .base(type: "rating.set", media: media, value: value) }
     static func library(_ media: CatalogMedia, status: String, isFavorite: Bool?) -> Self { .base(type: "library.upsert", media: media, status: status, isFavorite: isFavorite) }
+    static func removeLibrary(_ media: CatalogMedia) -> Self { .base(type: "library.remove", media: media) }
     static func movieLog(_ media: CatalogMedia, watchedAt: Date, isRewatch: Bool, rating: Double?, review: String?) -> Self { .base(type: "movie.log", media: media, rating: rating, watchedAt: Self.day.string(from: watchedAt), isRewatch: isRewatch, review: review) }
     static func episodeLog(_ media: CatalogMedia, season: Int, episode: Int, watchedAt: Date, rating: Double?) -> Self { .base(type: "episode.log", media: media, rating: rating, watchedAt: Self.instant.string(from: watchedAt), seasonNumber: season, episodeNumber: episode) }
     static func game(_ media: CatalogMedia, status: String, platform: String?, playtimeMinutes: Int, percent: Double?, rating: Double?) -> Self { .base(type: "game.upsert", media: media, status: status, rating: rating, platform: platform, playtimeMinutes: playtimeMinutes, progressPercent: percent) }

@@ -112,6 +112,13 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(payload?["rating"] as? Double, 4.5)
     }
 
+    func testDetailLibraryRemovalUsesTheDocumentedMutation() throws {
+        let media = try JSONDecoder.mosaic.decode(CatalogMedia.self, from: Data(#"{"provider":"tmdb","providerId":"1","mediaType":"movie","title":"Arrival","genres":[]}"#.utf8))
+        let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DetailMutation.removeLibrary(media))) as? [String: Any]
+        XCTAssertEqual(payload?["type"] as? String, "library.remove")
+        XCTAssertNotNil(payload?["media"])
+    }
+
     func testSearchFilterMapsToDocumentedCatalogTypes() {
         XCTAssertNil(CatalogFilter.all.catalogType)
         XCTAssertEqual(CatalogFilter.movies.catalogType, "movie")
