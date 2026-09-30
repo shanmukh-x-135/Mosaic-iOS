@@ -1,14 +1,20 @@
+import Observation
 import SwiftUI
 
 struct HomeView: View {
     @State private var model: HomeViewModel
     @State private var discovery = DiscoverViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
+    @State private var library: LibraryViewModel
+    @State private var activity: HomeActivityViewModel
 
     init(session: SessionStore) {
+        let client = MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)
         _model = State(initialValue: HomeViewModel(
-            client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL),
+            client: client,
             accessToken: { try await session.currentAccessToken() }
         ))
+        _library = State(initialValue: LibraryViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
+        _activity = State(initialValue: HomeActivityViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
     }
 
     var body: some View {
@@ -17,12 +23,14 @@ struct HomeView: View {
                 HomeHeader()
                 if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
                 content
+                if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
+                if case .loaded = library.state { HomeSavedRail(items: library.items) }
                 if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
             }
             .background(MosaicColor.background)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() } }
-            .task { model.load(); discovery.load() }
-            .refreshable { model.retry(); discovery.retry() }
+            .task { model.load(); discovery.load(); library.load(); activity.load() }
+            .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
         }
     }
 
@@ -128,6 +136,81 @@ private struct HomeDiscoveryRail: View {
             ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large) }.scrollIndicators(.hidden)
         }
     }
+}
+
+private struct HomeActivityRail: View {
+    let items: [ProfileActivity]
+    var body: some View {
+        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+            MosaicSectionHeader("Recently logged", eyebrow: "Your history")
+            VStack(spacing: MosaicSpace.small) {
+                ForEach(items.prefix(4)) { item in
+                    NavigationLink { MediaDetailContainer(route: item.media.route, preview: MediaDetailPreview(media: item.media)) } label: {
+                        HStack(spacing: MosaicSpace.medium) {
+                            MosaicArtwork(url: item.media.posterURL, symbol: item.media.mediaType.symbolName)
+                                .frame(width: 48, height: 64)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(item.media.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(1)
+                                Text(item.label).font(.caption).foregroundStyle(MosaicColor.secondaryText)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, MosaicLayout.screenMargin)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+private struct HomeSavedRail: View {
+    let items: [LibraryItemDTO]
+    private var saved: [LibraryItemDTO] { items.filter { ["watchlist", "backlog", "want_to_read"].contains($0.status) } }
+    var body: some View {
+        if !saved.isEmpty {
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Saved for later", eyebrow: "Your watchlist")
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: MosaicSpace.medium) {
+                        ForEach(saved.prefix(12)) { item in
+                            NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: {
+                                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                                    MosaicArtwork(url: item.posterURL ?? item.backdropURL, symbol: item.mediaType.symbolName)
+                                        .frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight)
+                                        .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
+                                    Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
+                                }
+                            }.buttonStyle(.plain)
+                        }
+                    }.padding(.horizontal, MosaicLayout.screenMargin)
+                }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
+@MainActor @Observable
+private final class HomeActivityViewModel {
+    enum State { case idle, loading, loaded([ProfileActivity]), failed }
+    private let request: @MainActor () async throws -> [ProfileActivity]
+    private var task: Task<Void, Never>?
+    private(set) var state: State = .idle
+    init(client: MosaicAPIClient, accessToken: @escaping @MainActor () async throws -> String) {
+        request = { let token = try await accessToken(); return try await client.request("/api/me/activity?limit=4", token: token, as: ProfileActivityResponse.self).items }
+    }
+    func load() {
+        guard task == nil else { return }
+        state = .loading
+        task = Task { [weak self] in
+            guard let self else { return }; defer { self.task = nil }
+            do { self.state = .loaded(try await self.request()) }
+            catch is CancellationError { self.state = .idle }
+            catch { self.state = .failed }
+        }
+    }
+    func refresh() { task?.cancel(); task = nil; state = .idle; load() }
 }
 
 private struct HomeEmptyState: View {
