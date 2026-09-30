@@ -12,12 +12,19 @@ enum MosaicColor {
     static let border = Color.white.opacity(0.10)
 }
 
-enum MosaicSpace { static let xSmall: CGFloat = 6; static let small: CGFloat = 10; static let medium: CGFloat = 16; static let large: CGFloat = 24; static let xLarge: CGFloat = 36 }
+enum MosaicSpace { static let xSmall: CGFloat = 6; static let small: CGFloat = 10; static let medium: CGFloat = 16; static let large: CGFloat = 20; static let xLarge: CGFloat = 32 }
 enum MosaicRadius { static let media: CGFloat = 16; static let card: CGFloat = 20; static let control: CGFloat = 14 }
+enum MosaicLayout {
+    static let screenMargin = MosaicSpace.large
+    static let bottomClearance = MosaicSpace.large
+    static let posterWidth: CGFloat = 128
+    static let posterHeight: CGFloat = 188
+    static let backdropHeight: CGFloat = 300
+}
 enum MosaicType {
     static let wordmark = Font.system(size: 25, weight: .bold, design: .rounded)
-    static let display = Font.system(size: 34, weight: .semibold, design: .serif)
-    static let hero = Font.system(size: 39, weight: .semibold, design: .serif)
+    static let display = Font.system(size: 30, weight: .bold, design: .rounded)
+    static let hero = Font.system(size: 30, weight: .bold, design: .rounded)
     static let title = Font.system(.title2, design: .rounded, weight: .semibold)
     static let section = Font.system(.title3, design: .rounded, weight: .bold)
     static let body = Font.body
@@ -27,7 +34,16 @@ enum MosaicType {
 struct MosaicScreen<Content: View>: View {
     @ViewBuilder var content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
-    var body: some View { ScrollView { VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }.padding(.vertical, MosaicSpace.large) }.background(MosaicColor.background) }
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, MosaicSpace.large)
+                .safeAreaPadding(.bottom, MosaicLayout.bottomClearance)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(MosaicColor.background)
+    }
 }
 
 struct MosaicEyebrow: View {

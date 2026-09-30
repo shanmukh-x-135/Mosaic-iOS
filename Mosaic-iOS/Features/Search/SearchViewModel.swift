@@ -1,5 +1,8 @@
 import Foundation
 import Observation
+import os
+
+private let searchLogger = Logger(subsystem: "com.shanmukhpgsspersonalteam.MosaiciOS", category: "Search")
 
 enum CatalogFilter: String, CaseIterable, Identifiable, Sendable {
     case all, movies, series, games, books
@@ -23,19 +26,20 @@ enum SearchViewState: Equatable {
 }
 
 enum SearchErrorPresentation: Equatable {
-    case offline, unavailable, unreadable, invalidQuery
+    case offline, timedOut, unavailable, unreadable, invalidQuery
 
     var title: String {
-        switch self { case .offline: "Mosaic can’t reach the internet"; case .unavailable: "Search is unavailable right now"; case .unreadable: "Mosaic couldn’t read these results"; case .invalidQuery: "Try a different search" }
+        switch self { case .offline: "Mosaic can’t reach the internet"; case .timedOut: "Search is taking too long"; case .unavailable: "Search is unavailable right now"; case .unreadable: "Mosaic couldn’t read these results"; case .invalidQuery: "Try a different search" }
     }
     var message: String {
-        switch self { case .offline: "Check your connection and try again."; case .unavailable: "Try again in a moment."; case .unreadable: "Try again. If this continues, update Mosaic."; case .invalidQuery: "Use between 2 and 100 characters." }
+        switch self { case .offline: "Check your connection and try again."; case .timedOut: "Mosaic did not respond within 12 seconds. Retry when you are ready."; case .unavailable: "Try again in a moment."; case .unreadable: "Try again. If this continues, update Mosaic."; case .invalidQuery: "Use between 2 and 100 characters." }
     }
     static func from(_ error: Error) -> SearchErrorPresentation {
         switch error {
         case let error as MosaicAPIError:
             switch error {
             case .network: .offline
+            case .timedOut: .timedOut
             case .providerUnavailable, .internalError: .unavailable
             case .validation: .invalidQuery
             case .decoding, .invalidResponse: .unreadable
@@ -84,6 +88,9 @@ final class SearchViewModel {
         guard key != requestedKey else { return }
         requestedKey = key
         state = .loading
+        #if DEBUG
+        searchLogger.debug("Search state loading: filter \(self.filter.rawValue, privacy: .public), query length \(normalized.count, privacy: .public)")
+        #endif
         searchTask = Task { [weak self, search] in
             do {
                 try await Task.sleep(for: .milliseconds(350))
@@ -93,11 +100,17 @@ final class SearchViewModel {
                 guard let self, self.requestedKey == key else { return }
                 let warning = response.failures.isEmpty ? nil : "Some catalog sources are unavailable."
                 self.state = response.items.isEmpty ? .empty(partialFailure: warning) : .results(response.items, partialFailure: warning)
+                #if DEBUG
+                searchLogger.debug("Search state updated: \(response.items.count, privacy: .public) results, \(response.failures.count, privacy: .public) failures")
+                #endif
             } catch is CancellationError {
                 return
             } catch {
                 guard let self, self.requestedKey == key else { return }
                 self.state = .error(SearchErrorPresentation.from(error))
+                #if DEBUG
+                searchLogger.error("Search state error: \(String(describing: error), privacy: .public)")
+                #endif
             }
         }
     }

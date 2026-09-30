@@ -27,7 +27,7 @@ struct MosaicAPIClient: Sendable {
         components?.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components?.url else { throw MosaicAPIError.invalidResponse }
         var request = URLRequest(url: url)
-        request.timeoutInterval = 25
+        request.timeoutInterval = 12
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return try await perform(request, as: type)
     }
@@ -37,6 +37,9 @@ struct MosaicAPIClient: Sendable {
     }
     private func perform<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
         let clock = ContinuousClock(); let start = clock.now
+        #if DEBUG
+        networkLogger.debug("Public request starting: \(request.url?.path(percentEncoded: false) ?? "unknown", privacy: .public)")
+        #endif
         defer {
         #if DEBUG
             networkLogger.debug("Public catalog request completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
@@ -45,9 +48,18 @@ struct MosaicAPIClient: Sendable {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
+            #if DEBUG
+            networkLogger.debug("Public response received: status \(http.statusCode, privacy: .public), \(data.count, privacy: .public) bytes")
+            #endif
             guard (200..<300).contains(http.statusCode) else { throw decodeError(data: data, statusCode: http.statusCode) }
-            do { return try JSONDecoder.mosaic.decode(T.self, from: data) } catch { throw MosaicAPIError.decoding("Mosaic returned data the app could not read.") }
-        } catch let error as MosaicAPIError { throw error } catch is CancellationError { throw CancellationError() } catch { throw MosaicAPIError.network("Unable to connect to Mosaic. Please try again.") }
+            do {
+                let decoded = try JSONDecoder.mosaic.decode(T.self, from: data)
+                #if DEBUG
+                networkLogger.debug("Public response decoded")
+                #endif
+                return decoded
+            } catch { throw MosaicAPIError.decoding("Mosaic returned data the app could not read.") }
+        } catch let error as MosaicAPIError { throw error } catch is CancellationError { throw CancellationError() } catch let error as URLError where error.code == .timedOut { throw MosaicAPIError.timedOut("Mosaic took too long to respond. Please try again.") } catch { throw MosaicAPIError.network("Unable to connect to Mosaic. Please try again.") }
     }
     private func decodeError(data: Data, statusCode: Int) -> MosaicAPIError {
         if let envelope = try? JSONDecoder.mosaic.decode(MosaicErrorEnvelope.self, from: data) { return .from(code: envelope.error.code, message: envelope.error.message, statusCode: statusCode) }

@@ -12,20 +12,18 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                MosaicScreen {
-                    ProfileIdentity(profile: session.currentUser?.profile)
-                    if let error = session.backendError { Text(error).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
-                    switch model.state {
-                    case .idle, .loading: ProfileSkeleton()
-                    case let .loaded(snapshot): ProfileOverview(snapshot: snapshot)
-                    case .empty: ProfileEmpty()
-                    case let .error(error): ProfileError(error: error, retry: model.retry)
-                    }
-                    Button("Sign Out", role: .destructive) { Task { await session.signOut() } }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            MosaicScreen {
+                ProfileIdentity(profile: session.currentUser?.profile)
+                if let error = session.backendError { Text(error).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+                switch model.state {
+                case .idle, .loading: ProfileSkeleton()
+                case let .loaded(snapshot): ProfileOverview(snapshot: snapshot)
+                case .empty: ProfileEmpty()
+                case let .error(error): ProfileError(error: error, retry: model.retry)
                 }
+                Button("Sign Out", role: .destructive) { Task { await session.signOut() } }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
@@ -120,7 +118,7 @@ private struct ProfileIdentity: View {
             VStack(alignment: .leading, spacing: 5) {
                 MosaicEyebrow(title: "Your Mosaic")
                 Text(profile?.displayName ?? profile?.username ?? "Your profile").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-                if let username = profile?.username { Text("@\(username)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
+                if let username = profile?.username, !username.hasPrefix("user_") { Text("@\(username)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
                 Text("One identity for everything you watch, play, and read.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
             }
         }

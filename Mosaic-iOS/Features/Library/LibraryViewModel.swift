@@ -6,7 +6,7 @@ enum LibraryErrorPresentation: Equatable {
     case offline, sessionExpired, unavailable, unreadable
     var title: String { switch self { case .offline: "Mosaic can’t reach the internet"; case .sessionExpired: "Your session needs attention"; case .unavailable: "Your Library is unavailable right now"; case .unreadable: "Mosaic couldn’t read your Library" } }
     var message: String { switch self { case .offline: "Check your connection and try again."; case .sessionExpired: "Return to Account and sign in again, then retry."; case .unavailable: "Try again in a moment."; case .unreadable: "Try again. If this continues, update Mosaic." } }
-    static func from(_ error: Error) -> Self { switch error { case let error as MosaicAPIError: switch error { case .network: .offline; case .unauthorized: .sessionExpired; case .internalError, .providerUnavailable: .unavailable; default: .unreadable }; default: .unavailable } }
+    static func from(_ error: Error) -> Self { switch error { case let error as MosaicAPIError: switch error { case .network, .timedOut: .offline; case .unauthorized: .sessionExpired; case .internalError, .providerUnavailable: .unavailable; default: .unreadable }; default: .unavailable } }
 }
 
 @MainActor @Observable

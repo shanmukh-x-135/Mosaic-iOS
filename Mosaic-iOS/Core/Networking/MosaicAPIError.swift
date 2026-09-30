@@ -1,9 +1,9 @@
 import Foundation
 
 enum MosaicAPIError: Error, Equatable, LocalizedError, Sendable {
-    case unauthorized(String), forbidden(String), notFound(String), validation(String), conflict(String), rateLimited(String), providerUnavailable(String), internalError(String), network(String), decoding(String), invalidResponse
+    case unauthorized(String), forbidden(String), notFound(String), validation(String), conflict(String), rateLimited(String), providerUnavailable(String), internalError(String), network(String), timedOut(String), decoding(String), invalidResponse
     var errorDescription: String? {
-        switch self { case let .unauthorized(m), let .forbidden(m), let .notFound(m), let .validation(m), let .conflict(m), let .rateLimited(m), let .providerUnavailable(m), let .internalError(m), let .network(m), let .decoding(m): m; case .invalidResponse: "The server returned an invalid response." }
+        switch self { case let .unauthorized(m), let .forbidden(m), let .notFound(m), let .validation(m), let .conflict(m), let .rateLimited(m), let .providerUnavailable(m), let .internalError(m), let .network(m), let .timedOut(m), let .decoding(m): m; case .invalidResponse: "The server returned an invalid response." }
     }
     static func from(code: String?, message: String, statusCode: Int) -> MosaicAPIError {
         switch code ?? "" { case "UNAUTHORIZED": .unauthorized(message); case "FORBIDDEN": .forbidden(message); case "NOT_FOUND": .notFound(message); case "VALIDATION_ERROR": .validation(message); case "CONFLICT": .conflict(message); case "RATE_LIMITED": .rateLimited(message); case "PROVIDER_UNAVAILABLE": .providerUnavailable(message); case "INTERNAL_ERROR": .internalError(message); default:

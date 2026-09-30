@@ -99,6 +99,15 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(CatalogFilter.books.catalogType, "book")
     }
 
+    func testMobileLayoutTokensFitTheNarrowestSupportedPhoneWidth() {
+        let narrowPhoneWidth: CGFloat = 320
+        let contentWidth = narrowPhoneWidth - (MosaicLayout.screenMargin * 2)
+        XCTAssertGreaterThan(contentWidth, 0)
+        XCTAssertLessThanOrEqual(MosaicLayout.posterWidth, contentWidth)
+        XCTAssertLessThanOrEqual(CGFloat(282), narrowPhoneWidth - MosaicLayout.screenMargin)
+        XCTAssertGreaterThan(MosaicLayout.bottomClearance, 0)
+    }
+
     func testSearchNormalizesWhitespaceAndHandlesEmptyResults() async throws {
         let empty = try decodeCatalogSearch(#"{"items":[],"failures":[]}"#)
         let model = SearchViewModel(search: { query, filter in
@@ -126,9 +135,27 @@ final class MosaicFoundationTests: XCTestCase {
 
     func testSearchErrorAndDetailErrorPresentation() {
         XCTAssertEqual(SearchErrorPresentation.from(MosaicAPIError.network("offline")), .offline)
+        XCTAssertEqual(SearchErrorPresentation.from(MosaicAPIError.timedOut("slow")), .timedOut)
         XCTAssertEqual(SearchErrorPresentation.from(MosaicAPIError.providerUnavailable("down")), .unavailable)
         XCTAssertEqual(DetailErrorPresentation.from(MosaicAPIError.notFound("gone")), .notFound)
         XCTAssertEqual(DetailErrorPresentation.from(MosaicAPIError.decoding("bad")), .unreadable)
+    }
+
+    func testSearchLeavesLoadingForTimeoutAndRetry() async throws {
+        let empty = try decodeCatalogSearch(#"{"items":[],"failures":[]}"#)
+        var calls = 0
+        let model = SearchViewModel(search: { _, _ in
+            calls += 1
+            if calls == 1 { throw MosaicAPIError.timedOut("slow") }
+            return empty
+        })
+        model.query = "Dune"
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(model.state, .error(.timedOut))
+        model.retry()
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(model.state, .empty(partialFailure: nil))
+        XCTAssertEqual(calls, 2)
     }
 
     func testLibraryEntryMapsIdentityProgressAndRating() throws {

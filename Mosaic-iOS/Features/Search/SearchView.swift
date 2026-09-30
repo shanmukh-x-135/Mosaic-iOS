@@ -79,6 +79,7 @@ private struct SearchResults: View {
                 }
             }
             .padding(.vertical, MosaicSpace.small)
+            .safeAreaPadding(.bottom, MosaicLayout.bottomClearance)
         }.scrollIndicators(.hidden)
     }
 }
@@ -103,6 +104,6 @@ private struct SearchResultRow: View {
 
 private struct SearchSkeleton: View {
     var body: some View {
-        ScrollView { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicSpace.large) } }.padding(.top, MosaicSpace.medium) }.accessibilityLabel("Searching catalog")
+        ScrollView { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicSpace.large) } }.padding(.top, MosaicSpace.medium).safeAreaPadding(.bottom, MosaicLayout.bottomClearance) }.accessibilityLabel("Searching catalog")
     }
 }

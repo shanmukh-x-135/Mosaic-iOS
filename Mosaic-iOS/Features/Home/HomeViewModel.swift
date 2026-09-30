@@ -39,7 +39,7 @@ enum HomeErrorPresentation: Equatable {
         case let error as MosaicAPIError:
             switch error {
             case .unauthorized: .sessionExpired
-            case .network: .offline
+            case .network, .timedOut: .offline
             case .providerUnavailable, .internalError: .unavailable
             case .decoding, .invalidResponse: .unreadable
             default: .unavailable

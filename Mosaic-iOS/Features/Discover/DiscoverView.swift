@@ -40,7 +40,7 @@ struct DiscoverView: View {
                 }
             }
             .background(MosaicColor.background)
-            .navigationTitle("Discover")
+            .navigationBarTitleDisplayMode(.inline)
             .task { model.load() }
             .refreshable { model.retry() }
         }
@@ -55,6 +55,11 @@ private struct DiscoverContent: View {
 
     var body: some View {
         MosaicScreen {
+            VStack(alignment: .leading, spacing: 4) {
+                MosaicEyebrow(title: "Live catalogs")
+                Text("Discover").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+            }
+            .padding(.horizontal, MosaicLayout.screenMargin)
             if let spotlight { DiscoverHero(media: spotlight) }
             VStack(alignment: .leading, spacing: MosaicSpace.medium) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -88,8 +93,9 @@ private struct DiscoverHero: View {
                 }.padding(MosaicSpace.large)
             }
             .frame(height: 390)
+            .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-            .padding(.horizontal, MosaicSpace.large)
+            .padding(.horizontal, MosaicLayout.screenMargin)
         }.buttonStyle(.plain)
     }
 }
@@ -101,7 +107,7 @@ private struct DiscoverRail: View {
             MosaicSectionHeader(section.label, eyebrow: section.mediaType.displayName)
             ScrollView(.horizontal) {
                 LazyHStack(spacing: MosaicSpace.medium) { ForEach(section.items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large)
-            }.scrollIndicators(.hidden)
+            }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
         }
     }
 }
@@ -110,13 +116,13 @@ struct DiscoverPoster: View {
     let media: CatalogMedia
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.small) {
-            MosaicArtwork(url: media.posterURL ?? media.backdropURL, symbol: media.mediaType.symbolName).frame(width: 142, height: 208).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
-            Text(media.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: 142, alignment: .leading)
-            Text(media.resultMetadata).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1).frame(width: 142, alignment: .leading)
+            MosaicArtwork(url: media.posterURL ?? media.backdropURL, symbol: media.mediaType.symbolName).frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
+            Text(media.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
+            Text(media.resultMetadata).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
         }
     }
 }
 
 private struct DiscoverSkeleton: View {
-    var body: some View { MosaicScreen { MosaicSkeleton().frame(height: 390).padding(.horizontal, MosaicSpace.large); ForEach(0..<2, id: \.self) { _ in VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Loading stories", eyebrow: "Discover"); ScrollView(.horizontal) { HStack(spacing: MosaicSpace.medium) { ForEach(0..<3, id: \.self) { _ in MosaicSkeleton(aspectRatio: 0.68).frame(width: 142) } }.padding(.horizontal, MosaicSpace.large) } } } }.accessibilityLabel("Loading discovery") }
+    var body: some View { MosaicScreen { MosaicSkeleton().frame(height: MosaicLayout.backdropHeight).padding(.horizontal, MosaicSpace.large); ForEach(0..<2, id: \.self) { _ in VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Loading stories", eyebrow: "Discover"); ScrollView(.horizontal) { HStack(spacing: MosaicSpace.medium) { ForEach(0..<3, id: \.self) { _ in MosaicSkeleton(aspectRatio: 0.68).frame(width: MosaicLayout.posterWidth) } }.padding(.horizontal, MosaicSpace.large) }.frame(maxWidth: .infinity) } } }.accessibilityLabel("Loading discovery") }
 }

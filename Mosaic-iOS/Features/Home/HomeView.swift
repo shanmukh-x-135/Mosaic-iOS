@@ -75,6 +75,7 @@ private struct ContinueRail: View {
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
+            .frame(maxWidth: .infinity)
         }
     }
 }
@@ -86,7 +87,8 @@ private struct ContinueSkeleton: View {
             MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
             RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)
                 .fill(MosaicColor.surface)
-                .frame(width: 282, height: 228)
+                .frame(maxWidth: .infinity)
+                .frame(height: 228)
                 .overlay(alignment: .bottomLeading) { VStack(alignment: .leading, spacing: 10) { Capsule().fill(Color.white.opacity(0.16)).frame(width: 70, height: 10); Capsule().fill(Color.white.opacity(0.18)).frame(width: 180, height: 22); Capsule().fill(Color.white.opacity(0.14)).frame(width: 130, height: 12) }.padding(MosaicSpace.medium) }
                 .padding(.horizontal, MosaicSpace.large)
                 .redacted(reason: .placeholder)
@@ -109,7 +111,11 @@ private struct HomeFeaturedStory: View {
                     HStack(spacing: MosaicSpace.small) { if let year = media.releaseYear { Text(String(year)) }; if let genre = media.genres.first { Text(genre) }; if let rating = media.communityRating { MosaicRating(value: rating) } }.font(.footnote).foregroundStyle(MosaicColor.secondaryText)
                     Label("View story", systemImage: "play.fill").font(.subheadline.weight(.bold)).foregroundStyle(MosaicColor.background).padding(.horizontal, 14).padding(.vertical, 10).background(MosaicColor.primaryText, in: Capsule())
                 }.padding(MosaicSpace.large)
-            }.frame(height: 360).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)).padding(.horizontal, MosaicSpace.large)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: MosaicLayout.backdropHeight)
+            .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
+            .padding(.horizontal, MosaicLayout.screenMargin)
         }.buttonStyle(.plain)
     }
 }
