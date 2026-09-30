@@ -204,6 +204,8 @@ private struct DetailTrackingActions: View {
                 } label: { Label("Library", systemImage: "books.vertical") }
                     .buttonStyle(.bordered)
                     .disabled(isSaving)
+            }
+            HStack(spacing: MosaicSpace.small) {
                 Menu {
                     Button("Clear rating") { save(.rating(media, nil)) }
                     Divider()
