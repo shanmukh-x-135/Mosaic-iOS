@@ -20,7 +20,7 @@ struct HomeView: View {
                 if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
             }
             .background(MosaicColor.background)
-            .navigationBarHidden(true)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() } }
             .task { model.load(); discovery.load() }
             .refreshable { model.retry(); discovery.retry() }
         }

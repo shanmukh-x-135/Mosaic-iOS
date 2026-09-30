@@ -1,5 +1,14 @@
 import SwiftUI
 
+struct GlobalSearchLink: View {
+    var body: some View {
+        NavigationLink { SearchView() } label: {
+            Image(systemName: "magnifyingglass")
+        }
+        .accessibilityLabel("Search Mosaic")
+    }
+}
+
 struct SearchView: View {
     @State private var model: SearchViewModel
 
