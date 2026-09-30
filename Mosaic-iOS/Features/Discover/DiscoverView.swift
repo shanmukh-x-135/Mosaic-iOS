@@ -51,7 +51,17 @@ struct DiscoverView: View {
 private struct DiscoverContent: View {
     let response: CatalogDiscoverResponse
     @Binding var filter: CatalogFilter
-    private var sections: [CatalogDiscoverySection] { filter == .all ? response.sections : response.sections.filter { $0.mediaType == CatalogMediaType(rawValue: filter.catalogType ?? "") } }
+    @State private var selectedGenre: String?
+    private var baseSections: [CatalogDiscoverySection] { filter == .all ? response.sections : response.sections.filter { $0.mediaType == CatalogMediaType(rawValue: filter.catalogType ?? "") } }
+    private var sections: [CatalogDiscoverySection] {
+        guard let selectedGenre else { return baseSections }
+        return baseSections.map { section in
+            CatalogDiscoverySection(id: section.id, label: section.label, mediaType: section.mediaType, items: section.items.filter { $0.genres.contains(selectedGenre) })
+        }.filter { !$0.items.isEmpty }
+    }
+    private var genres: [String] {
+        Array(Set(baseSections.flatMap(\.items).flatMap(\.genres))).sorted().prefix(12).map { $0 }
+    }
     private var spotlight: CatalogMedia? { sections.flatMap(\.items).first ?? response.items.first }
 
     var body: some View {
@@ -69,6 +79,19 @@ private struct DiscoverContent: View {
                     Text("Live catalogs, shaped around the stories you keep coming back to.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
                 }.padding(.horizontal, MosaicSpace.large)
                 ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(CatalogFilter.allCases) { item in Button { filter = item } label: { MosaicFilterChip(title: item.title, selected: item == filter) } } }.padding(.horizontal, MosaicSpace.large) }.scrollIndicators(.hidden)
+            }
+            if !genres.isEmpty {
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    MosaicSectionHeader("Browse by genre", eyebrow: "Find your next mood")
+                    ScrollView(.horizontal) {
+                        HStack(spacing: MosaicSpace.small) {
+                            Button { selectedGenre = nil } label: { MosaicFilterChip(title: "All genres", selected: selectedGenre == nil) }
+                            ForEach(genres, id: \.self) { genre in
+                                Button { selectedGenre = selectedGenre == genre ? nil : genre } label: { MosaicFilterChip(title: genre, selected: selectedGenre == genre) }
+                            }
+                        }.padding(.horizontal, MosaicLayout.screenMargin)
+                    }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
+                }
             }
             if !response.failures.isEmpty { Text("Some catalog sources are temporarily unavailable. Showing the stories we found.").font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large) }
             ForEach(sections) { section in
