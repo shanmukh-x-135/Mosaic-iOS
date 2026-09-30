@@ -16,6 +16,12 @@ struct ContinueItemDTO: Decodable, Sendable {
     let lastActivityAt: Date?
     let progress: ContinueProgressDTO
     let nextAction: ContinueNextActionDTO
+
+    private enum CodingKeys: String, CodingKey {
+        case id, mediaType, provider, providerId, title, status, lastActivityAt, progress, nextAction
+        case posterURL = "posterUrl"
+        case backdropURL = "backdropUrl"
+    }
 }
 
 enum ContinueMediaType: String, Decodable, Sendable { case series, book, game }
@@ -57,6 +63,9 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
         title = dto.title
         artworkURL = dto.backdropURL
         fallbackArtworkURL = dto.posterURL
+        #if DEBUG
+        print("[Mosaic ContinueArtwork] title=\(title) identity=\(dto.provider):\(dto.mediaType.rawValue):\(dto.providerId) backdrop=\(dto.backdropURL?.absoluteString ?? "nil") poster=\(dto.posterURL?.absoluteString ?? "nil")")
+        #endif
         status = dto.status
         switch dto.mediaType {
         case .series:

@@ -8,15 +8,18 @@ struct AppShell: View {
     @State private var isLogPresented = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            HomeView(session: session).tag(MosaicTab.home).tabItem { Label("Home", systemImage: "house.fill") }
-            DiscoverView().tag(MosaicTab.discover).tabItem { Label("Discover", systemImage: "sparkles") }
-            LibraryView(session: session).tag(MosaicTab.library).tabItem { Label("Library", systemImage: "books.vertical.fill") }
-            ProfileView(session: session).tag(MosaicTab.profile).tabItem { Label("Profile", systemImage: "person.crop.circle") }
-        }
-        .toolbar(.hidden, for: .tabBar)
+        destination
         .safeAreaInset(edge: .bottom, spacing: 0) { MosaicTabBar(selectedTab: $selectedTab) { isLogPresented = true } }
         .sheet(isPresented: $isLogPresented) { LogEntryView() }
+    }
+
+    @ViewBuilder private var destination: some View {
+        switch selectedTab {
+        case .home: HomeView(session: session)
+        case .discover: DiscoverView()
+        case .library: LibraryView(session: session)
+        case .profile: ProfileView(session: session)
+        }
     }
 }
 
@@ -29,7 +32,7 @@ private struct MosaicTabBar: View {
             tab(.discover, title: "Discover", symbol: "sparkles")
             Button(action: logAction) {
                 VStack(spacing: 3) {
-                    Image(systemName: "plus").font(.headline.weight(.bold)).frame(width: 32, height: 32).background(MosaicColor.accent, in: Circle()).foregroundStyle(MosaicColor.background)
+                    Image(systemName: "plus").font(.headline.weight(.bold)).frame(width: 32, height: 32).foregroundStyle(MosaicColor.background).background(MosaicColor.accent, in: Circle()).glassEffect(.regular, in: Circle())
                     Text("Log").font(.caption2.weight(.bold)).foregroundStyle(MosaicColor.primaryText)
                 }.frame(maxWidth: .infinity, minHeight: 48)
             }.buttonStyle(.plain).accessibilityLabel("Log")
@@ -37,8 +40,7 @@ private struct MosaicTabBar: View {
             tab(.profile, title: "Profile", symbol: "person.crop.circle")
         }
         .padding(.horizontal, 4).padding(.vertical, 7)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).stroke(MosaicColor.border))
+        .glassEffect(.regular, in: Capsule(style: .continuous))
         .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
         .background(MosaicColor.background.opacity(0.001))
     }
@@ -85,7 +87,7 @@ private struct LogEntryView: View {
                 .padding(.vertical, MosaicSpace.large)
             }
             .background(MosaicColor.background)
-            .navigationTitle("Log")
+            .navigationTitle("")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done", action: dismiss.callAsFunction) } }
         }
         .presentationDetents([.medium, .large])

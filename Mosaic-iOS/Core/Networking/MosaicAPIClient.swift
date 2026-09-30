@@ -35,6 +35,15 @@ struct MosaicAPIClient: Sendable {
         guard let url = URL(string: path, relativeTo: baseURL) else { throw MosaicAPIError.invalidResponse }
         var request = URLRequest(url: url); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); request.setValue("application/json", forHTTPHeaderField: "Accept"); return request
     }
+    func mutate<Body: Encodable>(path: String, body: Body, token: String) async throws {
+        var request = try makeRequest(path: path, token: token)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(body)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else { throw decodeError(data: data, statusCode: http.statusCode) }
+    }
     private func perform<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
         let clock = ContinuousClock(); let start = clock.now
         #if DEBUG

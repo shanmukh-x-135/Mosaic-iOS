@@ -19,7 +19,7 @@ struct MediaDetailRoute: Hashable, Sendable {
     }
 }
 
-enum CatalogMediaType: String, Hashable, Decodable, Sendable {
+enum CatalogMediaType: String, Hashable, Codable, Sendable {
     case movie
     case tv
     case game

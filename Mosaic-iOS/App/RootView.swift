@@ -11,6 +11,7 @@ struct RootView: View {
             case .signedIn: AppShell(session: session)
             }
         }
+        .environment(session)
         .preferredColorScheme(.dark)
         .tint(MosaicColor.accent)
     }

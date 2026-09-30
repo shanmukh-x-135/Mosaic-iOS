@@ -43,54 +43,11 @@ private struct StoryArtwork: View {
     let story: ContinueStory
 
     var body: some View {
-        Group {
-            if let artworkURL = story.artworkURL {
-                primaryArtwork(url: artworkURL)
-            } else if let fallbackURL = story.fallbackArtworkURL {
-                artwork(url: fallbackURL)
-            } else {
-                ArtworkPlaceholder(symbol: storySymbol)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .accessibilityHidden(true)
+        MosaicArtwork(url: story.artworkURL, fallbackURL: story.fallbackArtworkURL, symbol: storySymbol)
     }
 
     private var storySymbol: String {
         switch story.mediaType { case .series: "tv"; case .book: "book.closed"; case .game: "gamecontroller" }
     }
 
-    @ViewBuilder private func primaryArtwork(url: URL) -> some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case let .success(image): image.resizable().scaledToFill()
-            case .failure:
-                if let fallbackURL = story.fallbackArtworkURL, fallbackURL != url {
-                    artwork(url: fallbackURL)
-                } else {
-                    ArtworkPlaceholder(symbol: storySymbol)
-                }
-            case .empty: ArtworkPlaceholder(symbol: storySymbol)
-            @unknown default: ArtworkPlaceholder(symbol: storySymbol)
-            }
-        }
-    }
-
-    @ViewBuilder private func artwork(url: URL) -> some View {
-        AsyncImage(url: url) { phase in
-            switch phase {
-            case let .success(image): image.resizable().scaledToFill()
-            default: ArtworkPlaceholder(symbol: storySymbol)
-            }
-        }
-    }
-}
-
-private struct ArtworkPlaceholder: View {
-    let symbol: String
-    var body: some View {
-        LinearGradient(colors: [MosaicColor.surface, MosaicColor.background], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .overlay(Image(systemName: symbol).font(.system(size: 44, weight: .light)).foregroundStyle(MosaicColor.secondaryText))
-    }
 }

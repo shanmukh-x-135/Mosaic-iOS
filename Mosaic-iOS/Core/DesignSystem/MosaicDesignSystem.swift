@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum MosaicColor {
     static let background = Color(red: 0.027, green: 0.035, blue: 0.047)
@@ -80,7 +81,7 @@ struct MosaicRating: View {
 struct MosaicGlassControl<Content: View>: View {
     @ViewBuilder var content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
-    var body: some View { content.padding(.horizontal, 12).padding(.vertical, 9).background(.thinMaterial, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)).overlay(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous).stroke(MosaicColor.border)) }
+    var body: some View { content.padding(.horizontal, 12).padding(.vertical, 9).glassEffect(.regular, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)) }
 }
 
 struct MosaicSkeleton: View {
@@ -90,9 +91,66 @@ struct MosaicSkeleton: View {
 
 struct MosaicArtwork: View {
     let url: URL?
+    let fallbackURL: URL?
     let symbol: String
+    @State private var image: UIImage?
+
+    init(url: URL?, fallbackURL: URL? = nil, symbol: String) {
+        self.url = url
+        self.fallbackURL = fallbackURL
+        self.symbol = symbol
+    }
+
     var body: some View {
-        Group { if let url { AsyncImage(url: url) { phase in if case let .success(image) = phase { image.resizable().scaledToFill() } else { fallback } } } else { fallback } }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped().accessibilityHidden(true)
+        Group {
+            if let image { Image(uiImage: image).resizable().scaledToFill() }
+            else { fallback }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+        .accessibilityHidden(true)
+        .task(id: ArtworkRequestKey(primary: url, fallback: fallbackURL)) {
+            image = await MosaicArtworkLoader.shared.image(primary: url, fallback: fallbackURL)
+        }
     }
     private var fallback: some View { LinearGradient(colors: [MosaicColor.surface, MosaicColor.elevated], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: symbol).foregroundStyle(MosaicColor.secondaryText)) }
+}
+
+private struct ArtworkRequestKey: Hashable {
+    let primary: URL?
+    let fallback: URL?
+}
+
+actor MosaicArtworkLoader {
+    static let shared = MosaicArtworkLoader()
+    private let cache = NSCache<NSURL, UIImage>()
+
+    func image(primary: URL?, fallback: URL?) async -> UIImage? {
+        if let primary, let image = await image(for: primary, role: "primary") { return image }
+        guard let fallback, fallback != primary else { return nil }
+        return await image(for: fallback, role: "fallback")
+    }
+
+    private func image(for url: URL, role: String) async -> UIImage? {
+        if let cached = cache.object(forKey: url as NSURL) { return cached }
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            guard (200..<300).contains(status), let image = UIImage(data: data) else {
+                #if DEBUG
+                print("[Mosaic Artwork] \(role) failed status=\(status) url=\(url.absoluteString)")
+                #endif
+                return nil
+            }
+            cache.setObject(image, forKey: url as NSURL)
+            return image
+        } catch is CancellationError {
+            return nil
+        } catch {
+            #if DEBUG
+            print("[Mosaic Artwork] \(role) request failed url=\(url.absoluteString) error=\(error.localizedDescription)")
+            #endif
+            return nil
+        }
+    }
 }

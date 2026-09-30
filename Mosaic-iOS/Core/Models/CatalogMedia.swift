@@ -30,7 +30,7 @@ struct CatalogFailure: Decodable, Equatable, Sendable {
 
 /// The documented provider-normalized catalog union. Type-specific properties
 /// are omitted by the API when they are not meaningful for a media domain.
-struct CatalogMedia: Identifiable, Decodable, Equatable, Sendable {
+struct CatalogMedia: Identifiable, Codable, Equatable, Sendable {
     let provider: String
     let providerID: String
     let mediaType: CatalogMediaType
@@ -51,6 +51,8 @@ struct CatalogMedia: Identifiable, Decodable, Equatable, Sendable {
 
     let seasonCount: Int?
     let episodeCount: Int?
+    let seasonNumbers: [Int]?
+    let seasonEpisodeCounts: [String: Int]?
     let network: String?
     let networkLogoURL: URL?
 
@@ -67,7 +69,7 @@ struct CatalogMedia: Identifiable, Decodable, Equatable, Sendable {
         case provider, providerID = "providerId", mediaType, title, originalTitle, description
         case posterURL = "posterUrl", backdropURL = "backdropUrl", releaseDate, releaseYear, genres, communityRating
         case runtimeMinutes, director, studio, studioLogoURL = "studioLogoUrl"
-        case seasonCount, episodeCount, network, networkLogoURL = "networkLogoUrl"
+        case seasonCount, episodeCount, seasonNumbers, seasonEpisodeCounts, network, networkLogoURL = "networkLogoUrl"
         case platforms, developer, publisher, subtitle, authors, pageCount, isbn
     }
 

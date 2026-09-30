@@ -91,6 +91,27 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(media.authors, [])
     }
 
+    func testContinueArtworkKeepsBackdropAndPosterFallback() throws {
+        let response = try decodeContinueResponse(#"""
+        {"items":[{"id":"tmdb:tv:76331","mediaType":"series","provider":"tmdb","providerId":"76331","title":"Succession","posterUrl":"https://image.tmdb.org/t/p/w500/poster.jpg","backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","status":"watching","lastActivityAt":null,"progress":{"watchedEpisodes":1,"totalEpisodes":39,"percent":3},"nextAction":{"type":"log_episode"}}]}
+        """#)
+        let story = try XCTUnwrap(response.items.first.map(ContinueStory.init(dto:)))
+        XCTAssertEqual(story.artworkURL?.absoluteString, "https://image.tmdb.org/t/p/w1280/backdrop.jpg")
+        XCTAssertEqual(story.fallbackArtworkURL?.absoluteString, "https://image.tmdb.org/t/p/w500/poster.jpg")
+    }
+
+    func testSeriesDetailDecodesEpisodePickerMetadataAndRoutesEpisodeLog() throws {
+        let media = try JSONDecoder.mosaic.decode(CatalogMedia.self, from: Data(#"{"provider":"tmdb","providerId":"76331","mediaType":"tv","title":"Succession","genres":[],"seasonNumbers":[0,1,2],"seasonEpisodeCounts":{"1":10,"2":10}}"#.utf8))
+        XCTAssertEqual(media.seasonNumbers, [0, 1, 2])
+        XCTAssertEqual(media.seasonEpisodeCounts?["2"], 10)
+        let mutation = DetailMutation.episodeLog(media, season: 2, episode: 3, watchedAt: Date(timeIntervalSince1970: 0), rating: 4.5)
+        let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(mutation)) as? [String: Any]
+        XCTAssertEqual(payload?["type"] as? String, "episode.log")
+        XCTAssertEqual(payload?["seasonNumber"] as? Int, 2)
+        XCTAssertEqual(payload?["episodeNumber"] as? Int, 3)
+        XCTAssertEqual(payload?["rating"] as? Double, 4.5)
+    }
+
     func testSearchFilterMapsToDocumentedCatalogTypes() {
         XCTAssertNil(CatalogFilter.all.catalogType)
         XCTAssertEqual(CatalogFilter.movies.catalogType, "movie")
