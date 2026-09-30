@@ -206,7 +206,7 @@ private struct DetailTrackingActions: View {
                         Button("Remove from Library", role: .destructive) { save(.removeLibrary(media)) }
                     }
                 } label: { Label("Library", systemImage: "books.vertical") }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.glass)
                     .disabled(isSaving)
             }
             HStack(spacing: MosaicSpace.small) {
@@ -219,12 +219,12 @@ private struct DetailTrackingActions: View {
                 } label: {
                     Label("Rate", systemImage: "star")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .disabled(isSaving)
                 Button { save(.library(media, status: personal.item?.status ?? defaultLibraryStatus, isFavorite: !(personal.item?.isFavorite ?? false))) } label: {
                     Image(systemName: personal.item?.isFavorite == true ? "heart.fill" : "heart")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
                 .accessibilityLabel(personal.item?.isFavorite == true ? "Remove favourite" : "Add favourite")
                 .disabled(isSaving)
             }
