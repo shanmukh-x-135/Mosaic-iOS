@@ -158,6 +158,25 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(calls, 2)
     }
 
+    func testSearchDoesNotDuplicateAnUnchangedCommittedQuery() async throws {
+        let empty = try decodeCatalogSearch(#"{"items":[],"failures":[]}"#)
+        var calls = 0
+        let model = SearchViewModel(search: { _, _ in calls += 1; return empty })
+        model.query = "Dune"
+        try await Task.sleep(for: .milliseconds(450))
+        model.query = "Dune"
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(model.state, .empty(partialFailure: nil))
+    }
+
+    func testSearchDecodeFailureLeavesLoading() async throws {
+        let model = SearchViewModel(search: { _, _ in throw MosaicAPIError.decoding("bad payload") })
+        model.query = "Dune"
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(model.state, .error(.unreadable))
+    }
+
     func testLibraryEntryMapsIdentityProgressAndRating() throws {
         let response = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:1396","mediaType":"tv","provider":"tmdb","providerId":"1396","title":"Breaking Bad","status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":14,"totalEpisodes":62,"percent":23}}]}"#.utf8))
         let item = try XCTUnwrap(response.items.first)

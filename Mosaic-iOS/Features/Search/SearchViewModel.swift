@@ -89,12 +89,16 @@ final class SearchViewModel {
         requestedKey = key
         state = .loading
         #if DEBUG
-        searchLogger.debug("Search state loading: filter \(self.filter.rawValue, privacy: .public), query length \(normalized.count, privacy: .public)")
+        searchLogger.debug("Search query committed: filter \(self.filter.rawValue, privacy: .public), query length \(normalized.count, privacy: .public)")
+        searchLogger.debug("Search state loading")
         #endif
         searchTask = Task { [weak self, search] in
             do {
                 try await Task.sleep(for: .milliseconds(350))
                 try Task.checkCancellation()
+                #if DEBUG
+                searchLogger.debug("Search debounce complete")
+                #endif
                 let response = try await search(normalized, self?.filter ?? .all)
                 try Task.checkCancellation()
                 guard let self, self.requestedKey == key else { return }
