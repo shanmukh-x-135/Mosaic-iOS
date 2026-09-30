@@ -156,7 +156,7 @@ private struct ProfileOverview: View {
                         LazyHStack(spacing: MosaicSpace.medium) {
                             ForEach(favorites.prefix(10)) { item in
                                 NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: {
-                                    VStack(alignment: .leading, spacing: 6) { MosaicArtwork(url: item.posterURL, symbol: item.mediaType.symbolName).frame(width: 112, height: 164).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)); Text(item.title).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(2).frame(width: 112, alignment: .leading) }
+                                    VStack(alignment: .leading, spacing: 6) { MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 112, height: 164).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)); Text(item.title).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(2).frame(width: 112, alignment: .leading) }
                                 }.buttonStyle(.plain)
                             }
                         }.padding(.horizontal, MosaicSpace.large)
@@ -181,7 +181,7 @@ private struct ProfileActivityRow: View {
     private var dateLabel: String { event.occurredAt.formatted(.dateTime.month(.abbreviated).day()) }
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: event.media.posterURL, symbol: event.media.mediaType.symbolName)
+            MosaicArtwork(url: event.media.posterURL, fallbackURL: event.media.backdropURL, symbol: event.media.mediaType.symbolName)
                 .frame(width: 52, height: 70).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.media.mediaType.displayName.uppercased()).font(.caption2.weight(.bold)).foregroundStyle(MosaicColor.accent)

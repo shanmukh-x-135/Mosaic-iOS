@@ -108,7 +108,7 @@ private struct LogSearchContent: View {
                 ForEach(items) { item in
                     NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(media: item)) } label: {
                         HStack(spacing: MosaicSpace.medium) {
-                            MosaicArtwork(url: item.posterURL ?? item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 48, height: 66).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 48, height: 66).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) { Text(item.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(1); Text(item.resultMetadata).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1) }
                             Spacer(minLength: 0)
                         }.padding(.horizontal, MosaicLayout.screenMargin)

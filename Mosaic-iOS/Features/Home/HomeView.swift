@@ -115,7 +115,7 @@ private struct HomeFeaturedStory: View {
     var body: some View {
         NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: {
             ZStack(alignment: .bottomLeading) {
-                MosaicArtwork(url: media.backdropURL ?? media.posterURL, symbol: media.mediaType.symbolName)
+                MosaicArtwork(url: media.backdropURL, fallbackURL: media.posterURL, symbol: media.mediaType.symbolName)
                 LinearGradient(colors: [.clear, MosaicColor.background.opacity(0.98)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
                     MosaicEyebrow(title: "Discovery pick")
@@ -151,7 +151,7 @@ private struct HomeActivityRail: View {
                 ForEach(items.prefix(4)) { item in
                     NavigationLink { MediaDetailContainer(route: item.media.route, preview: MediaDetailPreview(media: item.media)) } label: {
                         HStack(spacing: MosaicSpace.medium) {
-                            MosaicArtwork(url: item.media.posterURL, symbol: item.media.mediaType.symbolName)
+                            MosaicArtwork(url: item.media.posterURL, fallbackURL: item.media.backdropURL, symbol: item.media.mediaType.symbolName)
                                 .frame(width: 48, height: 64)
                                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                             VStack(alignment: .leading, spacing: 3) {
@@ -181,7 +181,7 @@ private struct HomeSavedRail: View {
                         ForEach(saved.prefix(12)) { item in
                             NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: {
                                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                                    MosaicArtwork(url: item.posterURL ?? item.backdropURL, symbol: item.mediaType.symbolName)
+                                    MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName)
                                         .frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight)
                                         .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
                                     Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)

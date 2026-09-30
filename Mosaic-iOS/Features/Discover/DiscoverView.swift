@@ -108,7 +108,7 @@ private struct DiscoverHero: View {
     var body: some View {
         NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: {
             ZStack(alignment: .bottomLeading) {
-                MosaicArtwork(url: media.backdropURL ?? media.posterURL, symbol: media.mediaType.symbolName)
+                MosaicArtwork(url: media.backdropURL, fallbackURL: media.posterURL, symbol: media.mediaType.symbolName)
                 LinearGradient(colors: [.clear, MosaicColor.background.opacity(0.96)], startPoint: .top, endPoint: .bottom)
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
                     MosaicEyebrow(title: "Mosaic spotlight")
@@ -142,7 +142,7 @@ struct DiscoverPoster: View {
     let media: CatalogMedia
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.small) {
-            MosaicArtwork(url: media.posterURL ?? media.backdropURL, symbol: media.mediaType.symbolName).frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
+            MosaicArtwork(url: media.posterURL, fallbackURL: media.backdropURL, symbol: media.mediaType.symbolName).frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
             Text(media.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
             Text(media.resultMetadata).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
         }

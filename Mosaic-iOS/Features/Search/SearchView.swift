@@ -97,7 +97,7 @@ private struct SearchResultRow: View {
     let item: CatalogMedia
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: item.posterURL ?? item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 58, height: 82).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
+            MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 58, height: 82).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
             VStack(alignment: .leading, spacing: 5) {
                 Text(item.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
                 Text(item.resultMetadata).font(.subheadline).foregroundStyle(MosaicColor.secondaryText).lineLimit(2)
