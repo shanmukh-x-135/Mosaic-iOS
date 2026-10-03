@@ -14,7 +14,8 @@ struct ProfileView: View {
         NavigationStack {
             MosaicScreen {
                 ProfileIdentity(profile: session.currentUser?.profile)
-                if let error = session.backendError { Text(error).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+                    .padding(.horizontal, MosaicLayout.pageHorizontal)
+                if let error = session.backendError { Text(error).font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicLayout.pageHorizontal) }
                 switch model.state {
                 case .idle, .loading: ProfileSkeleton()
                 case let .loaded(snapshot): ProfileOverview(snapshot: snapshot)
@@ -24,6 +25,7 @@ struct ProfileView: View {
                 Button("Sign Out", role: .destructive) { Task { await session.signOut() } }
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
@@ -140,12 +142,13 @@ private struct ProfileOverview: View {
                     ProfileStat(value: snapshot.stats.game.completedPlaythroughs, label: "Games completed")
                     ProfileStat(value: snapshot.stats.book.finished, label: "Books read")
                 }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
             if !snapshot.activity.isEmpty {
                 VStack(alignment: .leading, spacing: MosaicSpace.medium) {
                     MosaicSectionHeader("Recently logged", eyebrow: "Personal history")
                     ForEach(snapshot.activity) { event in
-                        NavigationLink { MediaDetailContainer(route: event.media.route, preview: MediaDetailPreview(media: event.media)) } label: { ProfileActivityRow(event: event) }.buttonStyle(.plain)
+                        NavigationLink { MediaDetailContainer(route: event.media.route, preview: MediaDetailPreview(media: event.media)) } label: { ProfileActivityRow(event: event) }.buttonStyle(.plain).padding(.horizontal, MosaicLayout.pageHorizontal)
                     }
                 }
             }
@@ -159,7 +162,7 @@ private struct ProfileOverview: View {
                                     VStack(alignment: .leading, spacing: 6) { MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 112, height: 164).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)); Text(item.title).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(2).frame(width: 112, alignment: .leading) }
                                 }.buttonStyle(.plain)
                             }
-                        }.padding(.horizontal, MosaicSpace.large)
+                        }.padding(.horizontal, MosaicLayout.pageHorizontal)
                     }.scrollIndicators(.hidden)
                 }
             }
@@ -193,6 +196,6 @@ private struct ProfileActivityRow: View {
     }
 }
 
-private struct ProfileSkeleton: View { var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Your story so far", eyebrow: "All time"); LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: MosaicSpace.small) { ForEach(0..<4, id: \.self) { _ in MosaicSkeleton().frame(height: 88) } }; MosaicSkeleton().frame(height: 170) }.redacted(reason: .placeholder) } }
-private struct ProfileEmpty: View { var body: some View { ContentUnavailableView("Start your personal history", systemImage: "person.text.rectangle", description: Text("Log a movie, episode, game session, or reading update to see your story here.")) } }
-private struct ProfileError: View { let error: MosaicAPIError; let retry: () -> Void; var body: some View { VStack(spacing: MosaicSpace.medium) { ContentUnavailableView("Your profile is unavailable", systemImage: "exclamationmark.triangle", description: Text(error.localizedDescription)); Button("Try again", action: retry).buttonStyle(.borderedProminent) } } }
+private struct ProfileSkeleton: View { var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Your story so far", eyebrow: "All time"); LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: MosaicSpace.small) { ForEach(0..<4, id: \.self) { _ in MosaicSkeleton().frame(height: 88) } }.padding(.horizontal, MosaicLayout.pageHorizontal); MosaicSkeleton().frame(height: 170).padding(.horizontal, MosaicLayout.pageHorizontal) }.redacted(reason: .placeholder) } }
+private struct ProfileEmpty: View { var body: some View { ContentUnavailableView("Start your personal history", systemImage: "person.text.rectangle", description: Text("Log a movie, episode, game session, or reading update to see your story here.")).padding(.horizontal, MosaicLayout.pageHorizontal) } }
+private struct ProfileError: View { let error: MosaicAPIError; let retry: () -> Void; var body: some View { VStack(spacing: MosaicSpace.medium) { ContentUnavailableView("Your profile is unavailable", systemImage: "exclamationmark.triangle", description: Text(error.localizedDescription)); Button("Try again", action: retry).buttonStyle(.borderedProminent) }.padding(.horizontal, MosaicLayout.pageHorizontal) } }

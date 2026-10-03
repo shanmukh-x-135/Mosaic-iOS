@@ -83,7 +83,7 @@ private struct ContinueRail: View {
                     }
                 }
                 .scrollTargetLayout()
-                .padding(.horizontal, MosaicSpace.large)
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
             .scrollIndicators(.hidden)
             .scrollTargetBehavior(.viewAligned)
@@ -102,7 +102,7 @@ private struct ContinueSkeleton: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: 228)
                 .overlay(alignment: .bottomLeading) { VStack(alignment: .leading, spacing: 10) { Capsule().fill(Color.white.opacity(0.16)).frame(width: 70, height: 10); Capsule().fill(Color.white.opacity(0.18)).frame(width: 180, height: 22); Capsule().fill(Color.white.opacity(0.14)).frame(width: 130, height: 12) }.padding(MosaicSpace.medium) }
-                .padding(.horizontal, MosaicSpace.large)
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
                 .redacted(reason: .placeholder)
                 .accessibilityLabel("Loading your stories")
         }
@@ -137,7 +137,7 @@ private struct HomeDiscoveryRail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
             MosaicSectionHeader("Worth a closer look", eyebrow: "A fresh discovery")
-            ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large) }.scrollIndicators(.hidden)
+            ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicLayout.pageHorizontal) }.scrollIndicators(.hidden)
         }
     }
 }
@@ -222,7 +222,7 @@ private struct HomeEmptyState: View {
         ContentUnavailableView("Nothing in progress yet", systemImage: "play.rectangle", description: Text("Start a series, book, or game and it will appear here."))
             .foregroundStyle(MosaicColor.secondaryText)
             .frame(maxWidth: .infinity, minHeight: 310)
-            .padding(.horizontal, MosaicSpace.large)
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }
 
@@ -237,6 +237,6 @@ private struct HomeErrorState: View {
         }
         .padding(MosaicSpace.large)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-        .padding(.horizontal, MosaicSpace.large)
+        .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }

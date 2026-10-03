@@ -1,58 +1,49 @@
 import SwiftUI
 
-private enum MosaicTab: Hashable { case home, discover, library, profile }
+enum MosaicTab: Hashable { case home, discover, log, library, profile }
+
+struct MosaicTabRouter: Equatable {
+    private(set) var activeTab: MosaicTab = .home
+
+    mutating func activate(_ tab: MosaicTab) -> Bool {
+        guard tab != .log else { return true }
+        activeTab = tab
+        return false
+    }
+}
 
 struct AppShell: View {
     @Bindable var session: SessionStore
     @State private var selectedTab: MosaicTab = .home
+    @State private var router = MosaicTabRouter()
     @State private var isLogPresented = false
 
     var body: some View {
-        destination
-        .safeAreaInset(edge: .bottom, spacing: 0) { MosaicTabBar(selectedTab: $selectedTab) { isLogPresented = true } }
-        .sheet(isPresented: $isLogPresented) { LogEntryView() }
-    }
-
-    @ViewBuilder private var destination: some View {
-        switch selectedTab {
-        case .home: HomeView(session: session)
-        case .discover: DiscoverView()
-        case .library: LibraryView(session: session)
-        case .profile: ProfileView(session: session)
+        TabView(selection: $selectedTab) {
+            HomeView(session: session)
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(MosaicTab.home)
+            DiscoverView()
+                .tabItem { Label("Discover", systemImage: "sparkles") }
+                .tag(MosaicTab.discover)
+            Color.clear
+                .accessibilityHidden(true)
+                .tabItem { Label("Log", systemImage: "plus") }
+                .tag(MosaicTab.log)
+            LibraryView(session: session)
+                .tabItem { Label("Library", systemImage: "books.vertical.fill") }
+                .tag(MosaicTab.library)
+            ProfileView(session: session)
+                .tabItem { Label("Profile", systemImage: "person.crop.circle") }
+                .tag(MosaicTab.profile)
         }
-    }
-}
-
-private struct MosaicTabBar: View {
-    @Binding var selectedTab: MosaicTab
-    let logAction: () -> Void
-    var body: some View {
-        HStack(spacing: 0) {
-            tab(.home, title: "Home", symbol: "house.fill")
-            tab(.discover, title: "Discover", symbol: "sparkles")
-            Button(action: logAction) {
-                VStack(spacing: 3) {
-                    Image(systemName: "plus").font(.headline.weight(.bold)).frame(width: 32, height: 32).foregroundStyle(MosaicColor.background).background(MosaicColor.accent, in: Circle()).glassEffect(.regular, in: Circle())
-                    Text("Log").font(.caption2.weight(.bold)).foregroundStyle(MosaicColor.primaryText)
-                }.frame(maxWidth: .infinity, minHeight: 48)
-            }.buttonStyle(.plain).accessibilityLabel("Log")
-            tab(.library, title: "Library", symbol: "books.vertical.fill")
-            tab(.profile, title: "Profile", symbol: "person.crop.circle")
-        }
-        .padding(.horizontal, 4).padding(.vertical, 7)
-        .glassEffect(.regular, in: Capsule(style: .continuous))
-        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 6)
-        .background(MosaicColor.background.opacity(0.001))
-    }
-    private func tab(_ tab: MosaicTab, title: String, symbol: String) -> some View {
-        Button { selectedTab = tab } label: {
-            VStack(spacing: 3) {
-                Image(systemName: symbol).font(.body.weight(.semibold))
-                Text(title).font(.caption2.weight(.medium))
+        .onChange(of: selectedTab) { _, newTab in
+            if router.activate(newTab) {
+                isLogPresented = true
+                selectedTab = router.activeTab
             }
-            .foregroundStyle(selectedTab == tab ? MosaicColor.accent : MosaicColor.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 48)
-        }.buttonStyle(.plain).accessibilityLabel(title)
+        }
+        .sheet(isPresented: $isLogPresented) { LogEntryView() }
     }
 }
 

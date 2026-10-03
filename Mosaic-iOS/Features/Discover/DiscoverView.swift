@@ -132,7 +132,7 @@ private struct DiscoverRail: View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
             MosaicSectionHeader(section.label, eyebrow: section.mediaType.displayName)
             ScrollView(.horizontal) {
-                LazyHStack(spacing: MosaicSpace.medium) { ForEach(section.items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicSpace.large)
+                LazyHStack(spacing: MosaicSpace.medium) { ForEach(section.items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicLayout.pageHorizontal)
             }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
         }
     }
@@ -150,5 +150,5 @@ struct DiscoverPoster: View {
 }
 
 private struct DiscoverSkeleton: View {
-    var body: some View { MosaicScreen { MosaicSkeleton().frame(height: MosaicLayout.backdropHeight).padding(.horizontal, MosaicSpace.large); ForEach(0..<2, id: \.self) { _ in VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Loading stories", eyebrow: "Discover"); ScrollView(.horizontal) { HStack(spacing: MosaicSpace.medium) { ForEach(0..<3, id: \.self) { _ in MosaicSkeleton(aspectRatio: 0.68).frame(width: MosaicLayout.posterWidth) } }.padding(.horizontal, MosaicSpace.large) }.frame(maxWidth: .infinity) } } }.accessibilityLabel("Loading discovery") }
+    var body: some View { MosaicScreen { MosaicSkeleton().frame(height: MosaicLayout.backdropHeight).padding(.horizontal, MosaicLayout.pageHorizontal); ForEach(0..<2, id: \.self) { _ in VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Loading stories", eyebrow: "Discover"); ScrollView(.horizontal) { HStack(spacing: MosaicSpace.medium) { ForEach(0..<3, id: \.self) { _ in MosaicSkeleton(aspectRatio: 0.68).frame(width: MosaicLayout.posterWidth) } }.padding(.horizontal, MosaicLayout.pageHorizontal) }.frame(maxWidth: .infinity) } } }.accessibilityLabel("Loading discovery") }
 }

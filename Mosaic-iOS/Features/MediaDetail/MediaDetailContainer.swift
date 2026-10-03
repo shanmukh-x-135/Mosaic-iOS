@@ -24,7 +24,6 @@ struct MediaDetailContainer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .navigationTitle(preview.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
         .task { model.load() }
     }
 
@@ -158,9 +157,8 @@ private struct MediaDetailContent: View {
                 if !available.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { Text("Details").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); ForEach(available) { item in DetailFactRow(item: item) } } }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, MosaicLayout.screenMargin)
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
             .padding(.vertical, MosaicSpace.large)
-            .safeAreaPadding(.bottom, MosaicLayout.bottomClearance)
         }
     }
 }

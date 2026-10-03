@@ -13,6 +13,16 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(OAuthCallback.url.absoluteString, "mosaic://auth/callback")
     }
 
+    func testNativeTabRouterInterceptsLogAndRestoresThePreviousContentTab() {
+        var router = MosaicTabRouter()
+        XCTAssertFalse(router.activate(.discover))
+        XCTAssertEqual(router.activeTab, .discover)
+        XCTAssertTrue(router.activate(.log))
+        XCTAssertEqual(router.activeTab, .discover)
+        XCTAssertFalse(router.activate(.library))
+        XCTAssertEqual(router.activeTab, .library)
+    }
+
     func testOAuthFailureMessagesAreSpecificAndSafe() {
         XCTAssertEqual(OAuthFailure.couldNotStart.message, "Google sign-in could not be started. Please try again.")
         XCTAssertEqual(OAuthFailure.cancelled.message, "Google sign-in was cancelled.")
@@ -129,11 +139,11 @@ final class MosaicFoundationTests: XCTestCase {
 
     func testMobileLayoutTokensFitTheNarrowestSupportedPhoneWidth() {
         let narrowPhoneWidth: CGFloat = 320
-        let contentWidth = narrowPhoneWidth - (MosaicLayout.screenMargin * 2)
+        XCTAssertEqual(MosaicLayout.pageHorizontal, 20)
+        let contentWidth = narrowPhoneWidth - (MosaicLayout.pageHorizontal * 2)
         XCTAssertGreaterThan(contentWidth, 0)
         XCTAssertLessThanOrEqual(MosaicLayout.posterWidth, contentWidth)
-        XCTAssertLessThanOrEqual(CGFloat(282), narrowPhoneWidth - MosaicLayout.screenMargin)
-        XCTAssertGreaterThan(MosaicLayout.bottomClearance, 0)
+        XCTAssertLessThanOrEqual(CGFloat(282), narrowPhoneWidth - MosaicLayout.pageHorizontal)
     }
 
     func testSearchNormalizesWhitespaceAndHandlesEmptyResults() async throws {

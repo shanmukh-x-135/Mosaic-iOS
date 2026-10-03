@@ -16,8 +16,8 @@ enum MosaicColor {
 enum MosaicSpace { static let xSmall: CGFloat = 6; static let small: CGFloat = 10; static let medium: CGFloat = 16; static let large: CGFloat = 20; static let xLarge: CGFloat = 32 }
 enum MosaicRadius { static let media: CGFloat = 16; static let card: CGFloat = 20; static let control: CGFloat = 14 }
 enum MosaicLayout {
-    static let screenMargin = MosaicSpace.large
-    static let bottomClearance = MosaicSpace.large
+    static let pageHorizontal = MosaicSpace.large
+    static let screenMargin = pageHorizontal
     static let posterWidth: CGFloat = 128
     static let posterHeight: CGFloat = 188
     static let backdropHeight: CGFloat = 300
@@ -40,7 +40,6 @@ struct MosaicScreen<Content: View>: View {
             VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, MosaicSpace.large)
-                .safeAreaPadding(.bottom, MosaicLayout.bottomClearance)
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(MosaicColor.background)
@@ -63,7 +62,7 @@ struct MosaicSectionHeader: View {
             VStack(alignment: .leading, spacing: 4) { if let eyebrow { MosaicEyebrow(title: eyebrow) }; Text(title).font(MosaicType.section).foregroundStyle(MosaicColor.primaryText) }
             Spacer(minLength: 8)
             if let action, let actionHandler { Button(action, action: actionHandler).font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.accent) }
-        }.padding(.horizontal, MosaicSpace.large)
+        }.padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }
 
