@@ -41,7 +41,6 @@ struct DiscoverView: View {
             }
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() } }
             .task { model.load() }
             .refreshable { model.retry() }
         }

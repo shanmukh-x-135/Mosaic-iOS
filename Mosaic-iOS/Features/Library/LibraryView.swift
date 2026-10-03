@@ -16,7 +16,7 @@ struct LibraryView: View {
             }
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() }; ToolbarItem(placement: .topBarTrailing) { Menu { Picker("Sort", selection: $model.sort) { ForEach(LibrarySort.allCases) { Text($0.title).tag($0) } } } label: { Label("Sort", systemImage: "arrow.up.arrow.down") } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Menu { Picker("Sort", selection: $model.sort) { ForEach(LibrarySort.allCases) { Text($0.title).tag($0) } } } label: { Label("Sort", systemImage: "arrow.up.arrow.down") } } }
             .task { model.load() }
         }
     }

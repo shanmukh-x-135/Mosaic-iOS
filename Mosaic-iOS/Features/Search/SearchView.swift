@@ -1,14 +1,5 @@
 import SwiftUI
 
-struct GlobalSearchLink: View {
-    var body: some View {
-        NavigationLink { SearchView() } label: {
-            Image(systemName: "magnifyingglass")
-        }
-        .accessibilityLabel("Search Mosaic")
-    }
-}
-
 struct SearchView: View {
     @State private var model: SearchViewModel
 
@@ -72,12 +63,20 @@ struct SearchView: View {
     }
 }
 
-private struct SearchResults: View {
+struct SearchResults: View {
     let items: [CatalogMedia]
     let partialFailure: String?
+    var embedded = false
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: MosaicSpace.small) {
+        Group {
+            if embedded { rows }
+            else { ScrollView { rows } }
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var rows: some View {
+        LazyVStack(alignment: .leading, spacing: MosaicSpace.small) {
                 if let partialFailure { Text(partialFailure).font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large) }
                 Text("\(items.count) results").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large).padding(.top, MosaicSpace.small)
                 ForEach(items) { item in
@@ -88,7 +87,6 @@ private struct SearchResults: View {
                 }
             }
             .padding(.vertical, MosaicSpace.small)
-        }.scrollIndicators(.hidden)
     }
 }
 
@@ -110,8 +108,10 @@ private struct SearchResultRow: View {
     }
 }
 
-private struct SearchSkeleton: View {
+struct SearchSkeleton: View {
+    var embedded = false
     var body: some View {
-        ScrollView { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicLayout.pageHorizontal) } }.padding(.top, MosaicSpace.medium) }.accessibilityLabel("Searching catalog")
+        Group { if embedded { rows } else { ScrollView { rows } } }.accessibilityLabel("Searching catalog")
     }
+    private var rows: some View { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicLayout.pageHorizontal) } }.padding(.top, MosaicSpace.medium) }
 }

@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var discovery = DiscoverViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
     @State private var library: LibraryViewModel
     @State private var activity: HomeActivityViewModel
+    @State private var search: SearchViewModel
 
     init(session: SessionStore) {
         let client = MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)
@@ -15,24 +16,29 @@ struct HomeView: View {
         ))
         _library = State(initialValue: LibraryViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
         _activity = State(initialValue: HomeActivityViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
+        _search = State(initialValue: SearchViewModel(client: client))
     }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
-                    HomeHeader()
-                    if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
-                    content
-                    if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
-                    if case .loaded = library.state { HomeSavedRail(items: library.items) }
-                    if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
+                    if search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        HomeHeader()
+                        if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
+                        content
+                        if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
+                        if case .loaded = library.state { HomeSavedRail(items: library.items) }
+                        if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
+                    } else {
+                        HomeSearchContent(model: search)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, MosaicSpace.large)
             }
             .background(MosaicColor.background)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { GlobalSearchLink() } }
+            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
             .task { model.load(); discovery.load(); library.load(); activity.load() }
             .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
         }
@@ -44,6 +50,21 @@ struct HomeView: View {
         case let .loaded(stories): ContinueRail(stories: stories)
         case .empty: HomeEmptyState()
         case let .error(error): HomeErrorState(error: error, retry: model.retry)
+        }
+    }
+}
+
+private struct HomeSearchContent: View {
+    let model: SearchViewModel
+    var body: some View {
+        switch model.state {
+        case .noQuery, .minimumQuery:
+            ContentUnavailableView("Keep typing", systemImage: "text.magnifyingglass", description: Text("Enter at least 2 characters to search Mosaic."))
+                .frame(maxWidth: .infinity, minHeight: 240)
+        case .loading: SearchSkeleton(embedded: true)
+        case let .results(items, partialFailure): SearchResults(items: items, partialFailure: partialFailure, embedded: true)
+        case let .empty(partialFailure): ContentUnavailableView("No matches", systemImage: "sparkle.magnifyingglass", description: Text(partialFailure ?? "Try another title."))
+        case let .error(error): VStack(spacing: MosaicSpace.medium) { ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message)); Button("Try again", action: model.retry).buttonStyle(.borderedProminent) }.frame(maxWidth: .infinity, minHeight: 240)
         }
     }
 }
