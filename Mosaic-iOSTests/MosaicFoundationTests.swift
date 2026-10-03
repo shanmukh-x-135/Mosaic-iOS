@@ -129,8 +129,18 @@ final class MosaicFoundationTests: XCTestCase {
         let second = SeriesSeasonRoute(provider: "tmdb", seriesProviderID: "76331", seasonNumber: 2)
         let episode = CatalogEpisode(id: "one", seasonNumber: 1, episodeNumber: 1, title: "Pilot", overview: nil, stillURL: nil, airDate: nil, runtimeMinutes: nil, publicRating: nil, publicRatingCount: nil)
         await SeriesSeasonCache.shared.store([episode], for: first)
-        XCTAssertEqual(await SeriesSeasonCache.shared.episodes(for: first), [episode])
-        XCTAssertNil(await SeriesSeasonCache.shared.episodes(for: second))
+        let firstCached = await SeriesSeasonCache.shared.episodes(for: first)
+        let secondCached = await SeriesSeasonCache.shared.episodes(for: second)
+        XCTAssertEqual(firstCached, [episode])
+        XCTAssertNil(secondCached)
+    }
+
+    func testSeriesPersonalStateDerivesWatchedEpisodeCoordinates() throws {
+        let data = Data(#"{"status":"watching","isFavorite":true,"userRating":4.5,"episodes":[{"seasonNumber":1,"episodeNumber":1,"watchedAt":"2026-10-03T09:00:00.000Z","rating":4.0}],"seasons":[{"seasonNumber":1,"state":"watching","completedOn":null,"updatedAt":"2026-10-03T09:00:00.000Z"}]}"#.utf8)
+        let state = try JSONDecoder.mosaic.decode(SeriesPersonalState.self, from: data)
+        XCTAssertTrue(state.watchedCoordinates.contains("1:1"))
+        XCTAssertEqual(state.status, "watching")
+        XCTAssertEqual(state.userRating, 4.5)
     }
 
     func testContinueArtworkKeepsBackdropAndPosterFallback() throws {

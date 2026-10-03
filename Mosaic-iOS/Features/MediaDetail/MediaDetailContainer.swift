@@ -130,7 +130,7 @@ private struct MovieDetailView: View {
     var body: some View { MediaDetailContent(media: media, metadata: [MetadataLine("Runtime", media.runtimeMinutes.map(runtimeText)), MetadataLine("Director", media.director), MetadataLine("Studio", media.studio)]) }
     private func runtimeText(_ minutes: Int) -> String { let hours = minutes / 60; let remainder = minutes % 60; return hours > 0 ? "\(hours)h \(remainder)m" : "\(minutes)m" }
 }
-private struct SeriesDetailView: View { let media: CatalogMedia; var body: some View { MediaDetailContent(media: media, metadata: [MetadataLine("Seasons", media.seasonCount.map(String.init)), MetadataLine("Episodes", media.episodeCount.map(String.init)), MetadataLine("Network", media.network)]) } }
+private struct SeriesDetailView: View { let media: CatalogMedia; var body: some View { SeriesHubView(media: media) } }
 private struct GameDetailView: View { let media: CatalogMedia; var body: some View { MediaDetailContent(media: media, metadata: [MetadataLine("Platforms", media.platforms?.joined(separator: ", ")), MetadataLine("Developer", media.developer), MetadataLine("Publisher", media.publisher)]) } }
 private struct BookDetailView: View { let media: CatalogMedia; var body: some View { MediaDetailContent(media: media, metadata: [MetadataLine("Author", media.authors?.joined(separator: ", ")), MetadataLine("Pages", media.pageCount.map(String.init)), MetadataLine("Publisher", media.publisher)]) } }
 
