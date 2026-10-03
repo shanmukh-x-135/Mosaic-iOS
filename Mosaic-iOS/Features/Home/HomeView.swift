@@ -71,23 +71,25 @@ private struct ContinueRail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
             MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: MosaicSpace.medium) {
-                    ForEach(stories) { story in
-                        NavigationLink {
-                            MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
-                        } label: {
-                            ContinueStoryCard(story: story)
+            GeometryReader { proxy in
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: MosaicSpace.medium) {
+                        ForEach(stories) { story in
+                            NavigationLink {
+                                MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
+                            } label: {
+                                ContinueStoryCard(story: story, width: ContinueCardLayout.width(for: proxy.size.width))
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, MosaicLayout.pageHorizontal)
                 }
-                .scrollTargetLayout()
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned)
             }
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.viewAligned)
-            .frame(maxWidth: .infinity)
+            .frame(height: ContinueCardLayout.height)
         }
     }
 }

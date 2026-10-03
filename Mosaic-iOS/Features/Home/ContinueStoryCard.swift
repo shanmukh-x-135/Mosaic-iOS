@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContinueStoryCard: View {
     let story: ContinueStory
+    let width: CGFloat
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -31,7 +32,7 @@ struct ContinueStoryCard: View {
             }
             .padding(MosaicSpace.medium)
         }
-        .frame(width: 282, height: 228)
+        .frame(width: width, height: ContinueCardLayout.height)
         .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(story.mediaLabel), \(story.title), \(story.progress.accessibilitySummary), \(story.actionTitle)")
@@ -43,11 +44,34 @@ private struct StoryArtwork: View {
     let story: ContinueStory
 
     var body: some View {
-        MosaicArtwork(url: story.artworkURL, fallbackURL: story.fallbackArtworkURL, symbol: storySymbol)
+        if let backdrop = story.artworkURL {
+            MosaicArtwork(url: backdrop, fallbackURL: story.fallbackArtworkURL, symbol: storySymbol)
+        } else if let poster = story.fallbackArtworkURL {
+            ZStack {
+                LinearGradient(colors: [MosaicColor.surface, MosaicColor.elevated], startPoint: .topLeading, endPoint: .bottomTrailing)
+                MosaicArtwork(url: poster, symbol: storySymbol)
+                    .frame(width: 104)
+                    .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
+                    .padding(.vertical, MosaicSpace.medium)
+            }
+        } else {
+            MosaicArtwork(url: nil, symbol: storySymbol)
+        }
     }
 
     private var storySymbol: String {
         switch story.mediaType { case .series: "tv"; case .book: "book.closed"; case .game: "gamecontroller" }
     }
 
+}
+
+enum ContinueCardLayout {
+    static let height: CGFloat = 228
+    static let widthRatio: CGFloat = 0.84
+    static let minimumWidth: CGFloat = 240
+
+    static func width(for viewportWidth: CGFloat, gutter: CGFloat = MosaicLayout.pageHorizontal) -> CGFloat {
+        let available = max(0, viewportWidth - (gutter * 2))
+        return max(minimumWidth, available * widthRatio)
+    }
 }

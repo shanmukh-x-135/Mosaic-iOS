@@ -238,6 +238,20 @@ private struct EpisodeExperienceView: View {
     let episode: CatalogEpisode
     let episodes: [CatalogEpisode]
     let watched: Bool
+    @Environment(SessionStore.self) private var session
+    @State private var isWatched: Bool
+    @State private var isSaving = false
+    @State private var presentsLogSheet = false
+    @State private var notice: String?
+
+    init(series: CatalogMedia, seasonRoute: SeriesSeasonRoute, episode: CatalogEpisode, episodes: [CatalogEpisode], watched: Bool) {
+        self.series = series
+        self.seasonRoute = seasonRoute
+        self.episode = episode
+        self.episodes = episodes
+        self.watched = watched
+        _isWatched = State(initialValue: watched)
+    }
 
     var body: some View {
         MosaicScreen {
@@ -255,11 +269,77 @@ private struct EpisodeExperienceView: View {
             if let overview = episode.overview, !overview.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { MosaicSectionHeader("About this episode"); Text(overview).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicLayout.pageHorizontal) } }
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
                 MosaicSectionHeader("Your episode")
-                Label(watched ? "Watched" : "Not watched", systemImage: watched ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(watched ? MosaicColor.accent : MosaicColor.secondaryText)
-                    .padding(.horizontal, MosaicLayout.pageHorizontal)
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    Label(isWatched ? "Watched" : "Not watched", systemImage: isWatched ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isWatched ? MosaicColor.accent : MosaicColor.secondaryText)
+                    if isWatched {
+                        Button("Unwatch") { save(.episodeUnwatch(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber)) }
+                            .buttonStyle(.glass)
+                            .disabled(isSaving)
+                    } else {
+                        Button("Log watched") { presentsLogSheet = true }
+                            .buttonStyle(.glassProminent)
+                            .disabled(isSaving)
+                    }
+                    if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
+            EpisodeAdjacentNavigation(series: series, seasonRoute: seasonRoute, episode: episode, episodes: episodes, watchedCoordinates: [])
         }
+        .sheet(isPresented: $presentsLogSheet) { EpisodeLogSheet { date, rating in save(.episodeLog(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber, watchedAt: date, rating: rating)) } }
+    }
+
+    private func save(_ mutation: DetailMutation) {
+        guard !isSaving else { return }
+        isSaving = true; notice = nil
+        Task {
+            do {
+                let token = try await session.currentAccessToken()
+                let clock = ContinuousClock(); let start = clock.now
+                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
+                seriesLogger.debug("Episode mutation completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
+                await SeriesPersonalStateCache.shared.invalidate(series.route)
+                await SeriesSeasonCache.shared.invalidate(seasonRoute)
+                await MainActor.run { isWatched = mutation.type == "episode.log"; notice = isWatched ? "Episode logged." : "Episode marked unwatched."; isSaving = false }
+            } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+        }
+    }
+}
+
+private struct EpisodeLogSheet: View {
+    let onSave: (Date, Double?) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var date = Date.now
+    @State private var rating = 0.0
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Watched") { DatePicker("Date", selection: $date, displayedComponents: .date) }
+                Section("Your rating") { Picker("Rating", selection: $rating) { Text("No rating").tag(0.0); ForEach([1.0, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], id: \.self) { Text("\($0.formatted(.number.precision(.fractionLength(0...1)))) stars").tag($0) } } }
+            }
+            .navigationTitle("Log episode")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }; ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(date, rating == 0 ? nil : rating); dismiss() } } }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
+private struct EpisodeAdjacentNavigation: View {
+    let series: CatalogMedia
+    let seasonRoute: SeriesSeasonRoute
+    let episode: CatalogEpisode
+    let episodes: [CatalogEpisode]
+    let watchedCoordinates: Set<String>
+    var body: some View {
+        let index = episodes.firstIndex(where: { $0.id == episode.id })
+        HStack {
+            if let previous = index.flatMap({ $0 > 0 ? episodes[$0 - 1] : nil }) { NavigationLink("Previous") { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: previous, episodes: episodes, watched: watchedCoordinates.contains("\(previous.seasonNumber):\(previous.episodeNumber)")) } }
+            Spacer()
+            if let next = index.flatMap({ $0 + 1 < episodes.count ? episodes[$0 + 1] : nil }) { NavigationLink("Next") { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: next, episodes: episodes, watched: watchedCoordinates.contains("\(next.seasonNumber):\(next.episodeNumber)")) } }
+        }
+        .font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.accent)
+        .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }
 

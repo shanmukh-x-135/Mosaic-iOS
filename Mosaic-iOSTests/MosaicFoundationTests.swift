@@ -143,6 +143,12 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(state.userRating, 4.5)
     }
 
+    func testContinueCardWidthUsesTheLocalViewportAndPreservesAPeek() {
+        XCTAssertEqual(ContinueCardLayout.width(for: 393), 296.52, accuracy: 0.01)
+        XCTAssertEqual(ContinueCardLayout.width(for: 320), ContinueCardLayout.minimumWidth)
+        XCTAssertLessThan(ContinueCardLayout.width(for: 430), 430 - MosaicLayout.pageHorizontal)
+    }
+
     func testContinueArtworkKeepsBackdropAndPosterFallback() throws {
         let response = try decodeContinueResponse(#"""
         {"items":[{"id":"tmdb:tv:76331","mediaType":"series","provider":"tmdb","providerId":"76331","title":"Succession","posterUrl":"https://image.tmdb.org/t/p/w500/poster.jpg","backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","status":"watching","lastActivityAt":null,"progress":{"watchedEpisodes":1,"totalEpisodes":39,"percent":3},"nextAction":{"type":"log_episode"}}]}
@@ -162,6 +168,10 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(payload?["seasonNumber"] as? Int, 2)
         XCTAssertEqual(payload?["episodeNumber"] as? Int, 3)
         XCTAssertEqual(payload?["rating"] as? Double, 4.5)
+        let unwatch = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DetailMutation.episodeUnwatch(media, season: 2, episode: 3))) as? [String: Any]
+        XCTAssertEqual(unwatch?["type"] as? String, "episode.unwatch")
+        XCTAssertEqual(unwatch?["seasonNumber"] as? Int, 2)
+        XCTAssertEqual(unwatch?["episodeNumber"] as? Int, 3)
     }
 
     func testDetailLibraryRemovalUsesTheDocumentedMutation() throws {
