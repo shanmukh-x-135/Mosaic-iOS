@@ -4,6 +4,27 @@ struct RootView: View {
     @Bindable var session: SessionStore
 
     var body: some View {
+        rootContent
+            .environment(session)
+            .preferredColorScheme(.dark)
+            .tint(MosaicColor.accent)
+    }
+
+    @ViewBuilder
+    private var rootContent: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-mosaic-visual-fixtures") {
+            MosaicVisualFixtureGallery()
+        } else {
+            signedInContent
+        }
+        #else
+        signedInContent
+        #endif
+    }
+
+    @ViewBuilder
+    private var signedInContent: some View {
         Group {
             switch session.state {
             case .launching: LaunchView()
@@ -11,9 +32,6 @@ struct RootView: View {
             case .signedIn: AppShell(session: session)
             }
         }
-        .environment(session)
-        .preferredColorScheme(.dark)
-        .tint(MosaicColor.accent)
     }
 }
 

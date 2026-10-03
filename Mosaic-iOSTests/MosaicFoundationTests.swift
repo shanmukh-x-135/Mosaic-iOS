@@ -23,6 +23,15 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(router.activeTab, .library)
     }
 
+    #if DEBUG
+    func testVisualFixturesContainTheRequiredRepresentativeTitles() {
+        XCTAssertEqual(MosaicVisualFixtures.all.map(\.title), [
+            "Digger", "Succession", "The Love Hypothesis", "Friends", "Spider-Man: Brand New Day"
+        ])
+        XCTAssertTrue(MosaicVisualFixtures.all.allSatisfy { $0.posterURL != nil && $0.backdropURL != nil })
+    }
+    #endif
+
     func testOAuthFailureMessagesAreSpecificAndSafe() {
         XCTAssertEqual(OAuthFailure.couldNotStart.message, "Google sign-in could not be started. Please try again.")
         XCTAssertEqual(OAuthFailure.cancelled.message, "Google sign-in was cancelled.")
