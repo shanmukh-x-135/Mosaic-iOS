@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ContinueStoryCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let story: ContinueStory
     let width: CGFloat
 
@@ -31,8 +32,10 @@ struct ContinueStoryCard: View {
                     .padding(.top, 3)
             }
             .padding(MosaicSpace.medium)
+            .frame(width: width, alignment: .leading)
+            .offset(x: MosaicSpace.medium)
         }
-        .frame(width: width, height: ContinueCardLayout.height)
+        .frame(width: width, height: ContinueCardLayout.height(for: dynamicTypeSize))
         .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(story.mediaLabel), \(story.title), \(story.progress.accessibilitySummary), \(story.actionTitle)")
@@ -73,5 +76,9 @@ enum ContinueCardLayout {
     static func width(for viewportWidth: CGFloat, gutter: CGFloat = MosaicLayout.pageHorizontal) -> CGFloat {
         let available = max(0, viewportWidth - (gutter * 2))
         return max(minimumWidth, available * widthRatio)
+    }
+
+    static func height(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        dynamicTypeSize.isAccessibilitySize ? 400 : height
     }
 }

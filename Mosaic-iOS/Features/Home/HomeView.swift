@@ -21,36 +21,38 @@ struct HomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
-                    if search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        HomeHeader()
-                        if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
-                        content
-                        if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
-                        if case .loaded = library.state { HomeSavedRail(items: library.items) }
-                        if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
-                    } else {
-                        HomeSearchContent(model: search)
+            GeometryReader { viewport in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
+                        if search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            HomeHeader()
+                            if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
+                            content(viewportWidth: viewport.size.width)
+                            if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
+                            if case .loaded = library.state { HomeSavedRail(items: library.items) }
+                            if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
+                        } else {
+                            HomeSearchContent(model: search)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, MosaicSpace.large)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, MosaicSpace.large)
+                .background(MosaicColor.background)
+                .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
+                .task { model.load(); discovery.load(); library.load(); activity.load() }
+                .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
+                    model.retry(); library.refresh(); activity.refresh()
+                }
+                .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
             }
-            .background(MosaicColor.background)
-            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
-            .task { model.load(); discovery.load(); library.load(); activity.load() }
-            .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
-                model.retry(); library.refresh(); activity.refresh()
-            }
-            .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
         }
     }
 
-    @ViewBuilder private var content: some View {
+    @ViewBuilder private func content(viewportWidth: CGFloat) -> some View {
         switch model.state {
         case .idle, .loading: ContinueSkeleton()
-        case let .loaded(stories): ContinueRail(stories: stories)
+        case let .loaded(stories): ContinueRail(stories: stories, viewportWidth: viewportWidth)
         case .empty: HomeEmptyState()
         case let .error(error): HomeErrorState(error: error, retry: model.retry)
         }
@@ -91,29 +93,29 @@ private struct HomeHeader: View {
 }
 
 private struct ContinueRail: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let stories: [ContinueStory]
+    let viewportWidth: CGFloat
     var body: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
             MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
-            GeometryReader { proxy in
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: MosaicSpace.medium) {
-                        ForEach(stories) { story in
-                            NavigationLink {
-                                MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
-                            } label: {
-                                ContinueStoryCard(story: story, width: ContinueCardLayout.width(for: proxy.size.width))
-                            }
-                            .buttonStyle(.plain)
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: MosaicSpace.medium) {
+                    Color.clear.frame(width: MosaicLayout.pageHorizontal)
+                    ForEach(stories) { story in
+                        NavigationLink {
+                            MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
+                        } label: {
+                            ContinueStoryCard(story: story, width: ContinueCardLayout.width(for: viewportWidth))
                         }
+                        .buttonStyle(.plain)
                     }
-                    .scrollTargetLayout()
-                    .padding(.horizontal, MosaicLayout.pageHorizontal)
                 }
-                .scrollIndicators(.hidden)
-                .scrollTargetBehavior(.viewAligned)
+                .scrollTargetLayout()
             }
-            .frame(height: ContinueCardLayout.height)
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.viewAligned)
+            .frame(height: ContinueCardLayout.height(for: dynamicTypeSize))
         }
     }
 }

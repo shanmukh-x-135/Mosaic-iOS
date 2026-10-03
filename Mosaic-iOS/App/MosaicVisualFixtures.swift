@@ -8,13 +8,23 @@ enum MosaicVisualFixtures {
     static let succession = media("{\"provider\":\"tmdb\",\"providerId\":\"76331\",\"mediaType\":\"tv\",\"title\":\"Succession\",\"description\":\"The Roy family controls the biggest media company in the world.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/d87JXX3DLkRJMfm5StCmmnmhHuX.jpg\",\"releaseYear\":2018,\"genres\":[\"Drama\",\"Comedy\"],\"communityRating\":8.306,\"seasonCount\":4,\"episodeCount\":39,\"seasonNumbers\":[1,2,3,4],\"seasonEpisodeCounts\":{\"1\":10,\"2\":10,\"3\":9,\"4\":10},\"eligibleEpisodeCount\":39}")
     static let loveHypothesis = media("{\"provider\":\"tmdb\",\"providerId\":\"1032863\",\"mediaType\":\"movie\",\"title\":\"The Love Hypothesis\",\"description\":\"A scientist tests the one theory she never expected.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/vfZxVHextAGC70zrNhS8lsROqP1.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/o7Oy9Gbx1CCyaweL8xUhtMW4Puq.jpg\",\"releaseYear\":2026,\"genres\":[\"Romance\",\"Comedy\"],\"communityRating\":8.066}")
     static let friends = media("{\"provider\":\"tmdb\",\"providerId\":\"1668\",\"mediaType\":\"tv\",\"title\":\"Friends\",\"description\":\"Six friends navigate life, love, and coffee in New York.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/2koX1xLkpTQM4IZebYvKysFW1Nh.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/l0qVZIpXtIo7km9u5Yqh0nKPOr5.jpg\",\"releaseYear\":1994,\"genres\":[\"Comedy\"],\"communityRating\":8.408,\"seasonCount\":10,\"episodeCount\":236}")
+    static let daredevil = media("{\"provider\":\"mock\",\"providerId\":\"daredevil\",\"mediaType\":\"tv\",\"title\":\"Daredevil\",\"description\":\"A blind lawyer fights for justice in Hell's Kitchen.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"releaseYear\":2015,\"genres\":[\"Crime\",\"Drama\"],\"communityRating\":8.1,\"seasonCount\":3,\"episodeCount\":39}")
     static let spiderMan = media("{\"provider\":\"tmdb\",\"providerId\":\"969681\",\"mediaType\":\"movie\",\"title\":\"Spider-Man: Brand New Day\",\"description\":\"A new day begins for the friendly neighborhood hero.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/bjiS5ipwxb9JFy3XRRN4OAilSeX.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/qeQJx07rK2xm8SD2sJxFKhE7gs0.jpg\",\"releaseYear\":2026,\"genres\":[\"Science Fiction\",\"Action\",\"Adventure\"],\"communityRating\":7.9}")
     static let longTitle = media("{\"provider\":\"mock\",\"providerId\":\"long-title\",\"mediaType\":\"tv\",\"title\":\"The Unreasonably Long Title of a Series That Must Wrap Naturally on Every iPhone\",\"description\":\"A fixture for title wrapping.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/d87JXX3DLkRJMfm5StCmmnmhHuX.jpg\",\"releaseYear\":2024,\"genres\":[\"Drama\"],\"seasonCount\":1,\"episodeCount\":10,\"seasonNumbers\":[1],\"seasonEpisodeCounts\":{\"1\":10}}")
     static let missingBackdrop = media("{\"provider\":\"mock\",\"providerId\":\"poster-only\",\"mediaType\":\"tv\",\"title\":\"Poster Only\",\"description\":\"A fixture for intentional poster fallback composition.\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"releaseYear\":2024,\"genres\":[\"Drama\"],\"seasonCount\":1,\"episodeCount\":10,\"seasonNumbers\":[1],\"seasonEpisodeCounts\":{\"1\":10}}")
+    static let continueStories = [
+        continueStory("{\"id\":\"continue-succession\",\"mediaType\":\"series\",\"provider\":\"tmdb\",\"providerId\":\"76331\",\"title\":\"Succession\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/d87JXX3DLkRJMfm5StCmmnmhHuX.jpg\",\"status\":\"watching\",\"lastActivityAt\":null,\"progress\":{\"watchedEpisodes\":13,\"totalEpisodes\":39,\"percent\":33.3,\"nextSeasonNumber\":2,\"nextEpisodeNumber\":3},\"nextAction\":{\"type\":\"episode.log\",\"seasonNumber\":2,\"episodeNumber\":3}}"),
+        continueStory("{\"id\":\"continue-daredevil\",\"mediaType\":\"series\",\"provider\":\"mock\",\"providerId\":\"daredevil\",\"title\":\"Daredevil\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg\",\"status\":\"watching\",\"lastActivityAt\":null,\"progress\":{\"watchedEpisodes\":8,\"totalEpisodes\":39,\"percent\":20.5,\"nextSeasonNumber\":1,\"nextEpisodeNumber\":9},\"nextAction\":{\"type\":\"episode.log\",\"seasonNumber\":1,\"episodeNumber\":9}}"),
+        continueStory("{\"id\":\"continue-friends\",\"mediaType\":\"series\",\"provider\":\"tmdb\",\"providerId\":\"1668\",\"title\":\"Friends\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/2koX1xLkpTQM4IZebYvKysFW1Nh.jpg\",\"backdropUrl\":\"https://image.tmdb.org/t/p/w1280/l0qVZIpXtIo7km9u5Yqh0nKPOr5.jpg\",\"status\":\"watching\",\"lastActivityAt\":null,\"progress\":{\"watchedEpisodes\":36,\"totalEpisodes\":236,\"percent\":15.3,\"nextSeasonNumber\":2,\"nextEpisodeNumber\":13},\"nextAction\":{\"type\":\"episode.log\",\"seasonNumber\":2,\"episodeNumber\":13}}")
+    ]
     static let all = [digger, succession, loveHypothesis, friends, spiderMan]
 
     private static func media(_ json: String) -> CatalogMedia {
         try! JSONDecoder().decode(CatalogMedia.self, from: Data(json.utf8))
+    }
+
+    private static func continueStory(_ json: String) -> ContinueStory {
+        ContinueStory(dto: try! JSONDecoder().decode(ContinueItemDTO.self, from: Data(json.utf8)))
     }
 }
 
@@ -80,7 +90,7 @@ struct MosaicVisualFixtureGallery: View {
 
 private struct FixtureHome: View {
     let lowerContentOnly: Bool
-    var body: some View { MosaicScreen {
+    var body: some View { GeometryReader { viewport in MosaicScreen {
         if !lowerContentOnly {
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
                 MosaicEyebrow(title: "Your mosaic")
@@ -88,9 +98,9 @@ private struct FixtureHome: View {
             }.padding(.horizontal, MosaicLayout.pageHorizontal)
             FixtureHero(media: MosaicVisualFixtures.digger)
         }
-        FixtureRail(title: "Continue watching", eyebrow: "Keep going", items: [MosaicVisualFixtures.succession, MosaicVisualFixtures.friends, MosaicVisualFixtures.spiderMan])
+        FixtureContinueRail(stories: MosaicVisualFixtures.continueStories, viewportWidth: viewport.size.width)
         FixtureActivity(title: "Recently logged", eyebrow: "Your story", items: [MosaicVisualFixtures.loveHypothesis, MosaicVisualFixtures.digger])
-    } }
+    } } }
 }
 
 private struct FixtureDiscover: View {
@@ -161,6 +171,27 @@ private struct FixtureEpisode: View { let media: CatalogMedia; var body: some Vi
 private struct FixtureLogSheet: View { @Environment(\.dismiss) private var dismiss; var body: some View { NavigationStack { ContentUnavailableView("Log something", systemImage: "plus.circle", description: Text("Search the catalog to add it to your story.")).navigationTitle("Add to your story").toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done", action: dismiss.callAsFunction) } } }.presentationDetents([.medium, .large]).presentationDragIndicator(.visible) } }
 private struct FixtureHero: View { let media: CatalogMedia; var body: some View { ZStack(alignment: .bottomLeading) { MosaicArtwork(url: media.backdropURL, fallbackURL: media.posterURL, symbol: media.mediaType.symbolName); LinearGradient(colors: [.clear, MosaicColor.background.opacity(0.94)], startPoint: .center, endPoint: .bottom); VStack(alignment: .leading, spacing: 5) { MosaicEyebrow(title: "Featured"); Text(media.title).font(.system(.title, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText); Text(media.resultMetadata).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }.padding(MosaicSpace.medium) }.frame(height: 230).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)).padding(.horizontal, MosaicLayout.pageHorizontal) } }
 private struct FixtureRail: View { let title: String; let eyebrow: String; let items: [CatalogMedia]; var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader(title, eyebrow: eyebrow); ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { DiscoverPoster(media: $0) } }.padding(.horizontal, MosaicLayout.pageHorizontal) }.scrollIndicators(.hidden) } } }
+private struct FixtureContinueRail: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let stories: [ContinueStory]
+    let viewportWidth: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+            MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: MosaicSpace.medium) {
+                    Color.clear.frame(width: MosaicLayout.pageHorizontal)
+                    ForEach(stories) { story in
+                        ContinueStoryCard(story: story, width: ContinueCardLayout.width(for: viewportWidth))
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            .frame(height: ContinueCardLayout.height(for: dynamicTypeSize))
+        }
+    }
+}
 private struct FixtureActivity: View { let title: String; let eyebrow: String; let items: [CatalogMedia]; var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.small) { MosaicSectionHeader(title, eyebrow: eyebrow); ForEach(items) { media in HStack(spacing: MosaicSpace.medium) { MosaicArtwork(url: media.posterURL, fallbackURL: media.backdropURL, symbol: media.mediaType.symbolName).frame(width: 48, height: 64).clipShape(RoundedRectangle(cornerRadius: 10)); VStack(alignment: .leading, spacing: 3) { Text(media.title).font(.headline).foregroundStyle(MosaicColor.primaryText); Text("Added to your library").font(.footnote).foregroundStyle(MosaicColor.secondaryText) }; Spacer(minLength: 0) }.padding(.horizontal, MosaicLayout.pageHorizontal) } } } }
 private struct FixturePulse: View { var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Library Pulse", eyebrow: "This month"); HStack(spacing: MosaicSpace.medium) { FixturePulseValue(value: "5", label: "Saved"); FixturePulseValue(value: "3", label: "Finished") }.padding(.horizontal, MosaicLayout.pageHorizontal) } } }
 private struct FixturePulseValue: View { let value: String; let label: String; var body: some View { VStack(alignment: .leading, spacing: 5) { Text(value).font(MosaicType.title).foregroundStyle(MosaicColor.primaryText); Text(label).font(.caption).foregroundStyle(MosaicColor.secondaryText) }.frame(maxWidth: .infinity, alignment: .leading).padding(MosaicSpace.medium).background(MosaicColor.surface, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)) } }

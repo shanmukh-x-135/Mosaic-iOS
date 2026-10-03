@@ -149,6 +149,11 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertLessThan(ContinueCardLayout.width(for: 430), 430 - MosaicLayout.pageHorizontal)
     }
 
+    func testContinueCardGrowsForAccessibilityText() {
+        XCTAssertEqual(ContinueCardLayout.height(for: .large), ContinueCardLayout.height)
+        XCTAssertGreaterThan(ContinueCardLayout.height(for: .accessibility3), ContinueCardLayout.height)
+    }
+
     func testSuccessfulMutationInvalidationPublishesOneSharedRefreshSignal() {
         let expectation = expectation(description: "state invalidation")
         let observer = NotificationCenter.default.addObserver(forName: .mosaicStateDidChange, object: nil, queue: .main) { _ in expectation.fulfill() }
