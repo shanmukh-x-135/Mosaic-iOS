@@ -8,6 +8,7 @@ struct SeriesHubView: View {
     let media: CatalogMedia
     @Environment(SessionStore.self) private var session
     @State private var state: SeriesPersonalStateViewModel
+    @State private var showsFullAbout = false
 
     init(media: CatalogMedia) {
         self.media = media
@@ -42,10 +43,18 @@ struct SeriesHubView: View {
             if let description = media.description, !description.isEmpty {
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
                     MosaicSectionHeader("About")
-                    Text(description).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true)
+                    Text(aboutText(description)).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, MosaicLayout.pageHorizontal)
+                    if description.count > 420 {
+                        Button(showsFullAbout ? "Show less" : "More") { showsFullAbout.toggle() }
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(MosaicColor.accent)
+                            .padding(.horizontal, MosaicLayout.pageHorizontal)
+                    }
                 }
             }
+
+            SeriesKeyDetails(media: media)
 
             if !seasons.isEmpty {
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
@@ -63,6 +72,11 @@ struct SeriesHubView: View {
             }
         }
         .task { await state.load(using: session) }
+    }
+
+    private func aboutText(_ description: String) -> String {
+        guard !showsFullAbout, description.count > 420 else { return description }
+        return String(description.prefix(420)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
 }
 
@@ -99,6 +113,35 @@ private struct SeriesIdentity: View {
             .font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
             if !media.genres.isEmpty { Text(media.genres.joined(separator: " · ")).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
         }
+    }
+}
+
+private struct SeriesKeyDetails: View {
+    let media: CatalogMedia
+
+    private var entries: [(String, String)] {
+        [
+            media.network.map { ("Network", $0) },
+            media.seasonCount.map { ("Seasons", "\($0)") },
+            media.eligibleEpisodeCount.map { ("Episodes", "\($0)") } ?? media.episodeCount.map { ("Episodes", "\($0)") },
+            media.releaseYear.map { ("First aired", "\($0)") }
+        ].compactMap { $0 }
+    }
+
+    var body: some View {
+        guard !entries.isEmpty else { return AnyView(EmptyView()) }
+        return AnyView(VStack(alignment: .leading, spacing: MosaicSpace.small) {
+            MosaicSectionHeader("Details")
+            VStack(spacing: 0) {
+                ForEach(entries, id: \.0) { label, value in
+                    HStack { Text(label).foregroundStyle(MosaicColor.secondaryText); Spacer(); Text(value).foregroundStyle(MosaicColor.primaryText).multilineTextAlignment(.trailing) }
+                        .font(.subheadline)
+                        .padding(.vertical, MosaicSpace.small)
+                    if label != entries.last?.0 { Divider().overlay(MosaicColor.border) }
+                }
+            }
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
+        })
     }
 }
 
