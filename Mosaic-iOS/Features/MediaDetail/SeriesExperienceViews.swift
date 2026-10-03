@@ -264,6 +264,7 @@ private struct SeasonExperienceView: View {
     @Environment(SessionStore.self) private var session
     @State private var seasonStatus: String?
     @State private var isSaving = false
+    @State private var savingEpisodeIDs: Set<String> = []
     @State private var notice: String?
 
     init(series: CatalogMedia, seasonNumber: Int, personalState: SeriesPersonalState?) {
@@ -302,10 +303,22 @@ private struct SeasonExperienceView: View {
                 ProgressView("Loading episodes").frame(maxWidth: .infinity, minHeight: 180)
             case let .loaded(episodes):
                 ForEach(episodes) { episode in
-                    NavigationLink { EpisodeExperienceView(series: series, seasonRoute: model.route, episode: episode, episodes: episodes, watched: personalState?.watched(episode) == true, watchedCoordinates: personalState?.watchedCoordinates ?? []) } label: {
-                        EpisodeRow(episode: episode, watched: personalState?.watched(episode) == true)
+                    HStack(spacing: MosaicSpace.small) {
+                        NavigationLink { EpisodeExperienceView(series: series, seasonRoute: model.route, episode: episode, episodes: episodes, watched: personalState?.watched(episode) == true, watchedCoordinates: personalState?.watchedCoordinates ?? []) } label: {
+                            EpisodeRow(episode: episode, watched: personalState?.watched(episode) == true, showsStateIndicator: false)
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            toggleEpisode(episode)
+                        } label: {
+                            Image(systemName: personalState?.watched(episode) == true ? "checkmark.circle.fill" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(personalState?.watched(episode) == true ? MosaicColor.accent : MosaicColor.mutedText)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(savingEpisodeIDs.contains(episode.id))
+                        .accessibilityLabel(personalState?.watched(episode) == true ? "Mark \(episode.title) unwatched" : "Mark \(episode.title) watched")
                     }
-                    .buttonStyle(.plain)
                     .padding(.horizontal, MosaicLayout.pageHorizontal)
                 }
             case .failed:
@@ -346,11 +359,33 @@ private struct SeasonExperienceView: View {
             seasonStatus = refreshed.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state
         }
     }
+
+    private func toggleEpisode(_ episode: CatalogEpisode) {
+        guard !savingEpisodeIDs.contains(episode.id) else { return }
+        savingEpisodeIDs.insert(episode.id)
+        let watched = personalState?.watched(episode) == true
+        Task {
+            do {
+                let token = try await session.currentAccessToken()
+                let mutation = watched
+                    ? DetailMutation.episodeUnwatch(series, season: seasonNumber, episode: episode.episodeNumber)
+                    : DetailMutation.episodeLog(series, season: seasonNumber, episode: episode.episodeNumber, watchedAt: .now, rating: nil)
+                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
+                await SeriesPersonalStateCache.shared.invalidate(series.route)
+                await SeriesSeasonCache.shared.invalidate(model.route)
+                await MainActor.run { savingEpisodeIDs.remove(episode.id); MosaicStateInvalidation.post() }
+                await refreshPersonalState(force: true)
+            } catch {
+                await MainActor.run { savingEpisodeIDs.remove(episode.id); notice = "Mosaic couldn’t save that change. Try again." }
+            }
+        }
+    }
 }
 
 private struct EpisodeRow: View {
     let episode: CatalogEpisode
     let watched: Bool
+    var showsStateIndicator = true
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
             MosaicArtwork(url: episode.stillURL, symbol: "tv").frame(width: 104, height: 62).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -360,7 +395,7 @@ private struct EpisodeRow: View {
                 Text([episode.runtimeMinutes.map { "\($0)m" }, episode.airDate, episode.publicRating.map { "★ \($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1)
             }
             Spacer(minLength: 0)
-            Image(systemName: watched ? "checkmark.circle.fill" : "circle").foregroundStyle(watched ? MosaicColor.accent : MosaicColor.mutedText)
+            if showsStateIndicator { Image(systemName: watched ? "checkmark.circle.fill" : "circle").foregroundStyle(watched ? MosaicColor.accent : MosaicColor.mutedText) }
         }
         .padding(.vertical, MosaicSpace.xSmall)
     }
