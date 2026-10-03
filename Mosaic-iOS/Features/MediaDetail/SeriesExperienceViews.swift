@@ -108,6 +108,7 @@ private struct SeriesPersonalStory: View {
     @Environment(SessionStore.self) private var session
     @State private var isSaving = false
     @State private var notice: String?
+    @State private var presentsLogSheet = false
 
     private var watchedCount: Int { state.value?.watchedCoordinates.count ?? 0 }
     private var total: Int? { media.eligibleEpisodeCount ?? media.episodeCount }
@@ -138,7 +139,7 @@ private struct SeriesPersonalStory: View {
             if let next { Text("Next · S\(String(format: "%02d", next.0))E\(String(format: "%02d", next.1))").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.accent) }
             HStack(spacing: MosaicSpace.small) {
                 if let next {
-                    Button("Log next episode") { log(next) }.buttonStyle(.glassProminent).disabled(isSaving)
+                    Button("Log next episode") { presentsLogSheet = true }.buttonStyle(.glassProminent).disabled(isSaving)
                 }
                 Menu {
                     ForEach(["watchlist", "watching", "paused", "completed", "dropped"], id: \.self) { status in
@@ -146,13 +147,34 @@ private struct SeriesPersonalStory: View {
                     }
                 } label: { Label("Status", systemImage: "ellipsis.circle") }
                 .buttonStyle(.glass).disabled(isSaving)
+                Menu {
+                    Button("Clear rating") { save(.rating(media, nil)) }
+                    Divider()
+                    ForEach([1.0, 2.0, 3.0, 4.0, 5.0], id: \.self) { rating in
+                        Button("\(Int(rating)) stars") { save(.rating(media, rating)) }
+                    }
+                } label: { Label(state.value?.userRating == nil ? "Rate" : "Rated \(state.value?.userRating ?? 0, specifier: "%.1f")", systemImage: "star") }
+                .buttonStyle(.glass).disabled(isSaving)
+                Button {
+                    save(.library(media, status: state.value?.status ?? "watchlist", isFavorite: !(state.value?.isFavorite ?? false)))
+                } label: {
+                    Image(systemName: state.value?.isFavorite == true ? "heart.fill" : "heart")
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel(state.value?.isFavorite == true ? "Remove favourite" : "Add favourite")
+                .disabled(isSaving)
             }
             if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
         }
         .task { await state.load(using: session) }
+        .sheet(isPresented: $presentsLogSheet) {
+            if let next {
+                EpisodeLogSheet { date, rating in log(next, watchedAt: date, rating: rating) }
+            }
+        }
     }
 
-    private func log(_ coordinate: (Int, Int)) { save(.episodeLog(media, season: coordinate.0, episode: coordinate.1, watchedAt: .now, rating: nil)) }
+    private func log(_ coordinate: (Int, Int), watchedAt: Date, rating: Double?) { save(.episodeLog(media, season: coordinate.0, episode: coordinate.1, watchedAt: watchedAt, rating: rating)) }
     private func save(_ mutation: DetailMutation) {
         guard !isSaving else { return }
         isSaving = true
