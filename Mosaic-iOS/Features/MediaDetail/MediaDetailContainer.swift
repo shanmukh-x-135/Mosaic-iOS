@@ -382,7 +382,10 @@ private extension String { var nilIfBlank: String? { let value = trimmingCharact
 struct DetailMutation: Encodable {
     let type: String
     let media: CatalogMedia
+    let series: CatalogMedia?
     let status: String?
+    let state: String?
+    let provenance: String?
     let isFavorite: Bool?
     let value: Double?
     let rating: Double?
@@ -401,12 +404,13 @@ struct DetailMutation: Encodable {
     static func library(_ media: CatalogMedia, status: String, isFavorite: Bool?) -> Self { .base(type: "library.upsert", media: media, status: status, isFavorite: isFavorite) }
     static func removeLibrary(_ media: CatalogMedia) -> Self { .base(type: "library.remove", media: media) }
     static func movieLog(_ media: CatalogMedia, watchedAt: Date, isRewatch: Bool, rating: Double?, review: String?) -> Self { .base(type: "movie.log", media: media, rating: rating, watchedAt: Self.day.string(from: watchedAt), isRewatch: isRewatch, review: review) }
-    static func episodeLog(_ media: CatalogMedia, season: Int, episode: Int, watchedAt: Date, rating: Double?) -> Self { .base(type: "episode.log", media: media, rating: rating, watchedAt: Self.instant.string(from: watchedAt), seasonNumber: season, episodeNumber: episode) }
-    static func episodeUnwatch(_ media: CatalogMedia, season: Int, episode: Int) -> Self { .base(type: "episode.unwatch", media: media, seasonNumber: season, episodeNumber: episode) }
+    static func episodeLog(_ media: CatalogMedia, season: Int, episode: Int, watchedAt: Date, rating: Double?) -> Self { .base(type: "episode.log", media: media, series: media, rating: rating, watchedAt: Self.instant.string(from: watchedAt), seasonNumber: season, episodeNumber: episode) }
+    static func episodeUnwatch(_ media: CatalogMedia, season: Int, episode: Int) -> Self { .base(type: "episode.unwatch", media: media, series: media, seasonNumber: season, episodeNumber: episode) }
+    static func seasonState(_ media: CatalogMedia, season: Int, state: String) -> Self { .base(type: "season.state", media: media, series: media, state: state, provenance: "bulk_season", seasonNumber: season) }
     static func game(_ media: CatalogMedia, status: String, platform: String?, playtimeMinutes: Int, percent: Double?, rating: Double?) -> Self { .base(type: "game.upsert", media: media, status: status, rating: rating, platform: platform, playtimeMinutes: playtimeMinutes, progressPercent: percent) }
     static func book(_ media: CatalogMedia, status: String, currentPage: Int?, totalPages: Int?, percent: Double?, rating: Double?) -> Self { .base(type: "book.upsert", media: media, status: status, rating: rating, progressPercent: percent, currentPage: currentPage, totalPages: totalPages) }
-    private static func base(type: String, media: CatalogMedia, status: String? = nil, isFavorite: Bool? = nil, value: Double? = nil, rating: Double? = nil, watchedAt: String? = nil, isRewatch: Bool? = nil, review: String? = nil, seasonNumber: Int? = nil, episodeNumber: Int? = nil, platform: String? = nil, playtimeMinutes: Int? = nil, progressPercent: Double? = nil, currentPage: Int? = nil, totalPages: Int? = nil) -> Self {
-        .init(type: type, media: media, status: status, isFavorite: isFavorite, value: value, rating: rating, watchedAt: watchedAt, isRewatch: isRewatch, review: review, seasonNumber: seasonNumber, episodeNumber: episodeNumber, platform: platform, playtimeMinutes: playtimeMinutes, progressPercent: progressPercent, currentPage: currentPage, totalPages: totalPages)
+    private static func base(type: String, media: CatalogMedia, series: CatalogMedia? = nil, status: String? = nil, state: String? = nil, provenance: String? = nil, isFavorite: Bool? = nil, value: Double? = nil, rating: Double? = nil, watchedAt: String? = nil, isRewatch: Bool? = nil, review: String? = nil, seasonNumber: Int? = nil, episodeNumber: Int? = nil, platform: String? = nil, playtimeMinutes: Int? = nil, progressPercent: Double? = nil, currentPage: Int? = nil, totalPages: Int? = nil) -> Self {
+        .init(type: type, media: media, series: series, status: status, state: state, provenance: provenance, isFavorite: isFavorite, value: value, rating: rating, watchedAt: watchedAt, isRewatch: isRewatch, review: review, seasonNumber: seasonNumber, episodeNumber: episodeNumber, platform: platform, playtimeMinutes: playtimeMinutes, progressPercent: progressPercent, currentPage: currentPage, totalPages: totalPages)
     }
     private static let day: DateFormatter = { let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .iso8601); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"; return formatter }()
     private static let instant = ISO8601DateFormatter()

@@ -165,6 +165,7 @@ final class MosaicFoundationTests: XCTestCase {
         let mutation = DetailMutation.episodeLog(media, season: 2, episode: 3, watchedAt: Date(timeIntervalSince1970: 0), rating: 4.5)
         let payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(mutation)) as? [String: Any]
         XCTAssertEqual(payload?["type"] as? String, "episode.log")
+        XCTAssertNotNil(payload?["series"])
         XCTAssertEqual(payload?["seasonNumber"] as? Int, 2)
         XCTAssertEqual(payload?["episodeNumber"] as? Int, 3)
         XCTAssertEqual(payload?["rating"] as? Double, 4.5)
@@ -172,6 +173,11 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(unwatch?["type"] as? String, "episode.unwatch")
         XCTAssertEqual(unwatch?["seasonNumber"] as? Int, 2)
         XCTAssertEqual(unwatch?["episodeNumber"] as? Int, 3)
+        XCTAssertNotNil(unwatch?["series"])
+        let season = try JSONSerialization.jsonObject(with: JSONEncoder().encode(DetailMutation.seasonState(media, season: 2, state: "completed"))) as? [String: Any]
+        XCTAssertEqual(season?["state"] as? String, "completed")
+        XCTAssertEqual(season?["provenance"] as? String, "bulk_season")
+        XCTAssertNotNil(season?["series"])
     }
 
     func testDetailLibraryRemovalUsesTheDocumentedMutation() throws {

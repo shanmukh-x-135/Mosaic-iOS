@@ -174,12 +174,17 @@ private struct SeasonExperienceView: View {
     let seasonNumber: Int
     let personalState: SeriesPersonalState?
     @State private var model: SeasonEpisodesViewModel
+    @Environment(SessionStore.self) private var session
+    @State private var seasonStatus: String?
+    @State private var isSaving = false
+    @State private var notice: String?
 
     init(series: CatalogMedia, seasonNumber: Int, personalState: SeriesPersonalState?) {
         self.series = series
         self.seasonNumber = seasonNumber
         self.personalState = personalState
         _model = State(initialValue: SeasonEpisodesViewModel(route: SeriesSeasonRoute(series: series, seasonNumber: seasonNumber), client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
+        _seasonStatus = State(initialValue: personalState?.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state)
     }
 
     var body: some View {
@@ -191,6 +196,16 @@ private struct SeasonExperienceView: View {
                     let watched = episodes.filter { personalState?.watched($0) == true }.count
                     Text("\(watched) / \(episodes.count) watched").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
                     ProgressView(value: Double(watched), total: Double(max(episodes.count, 1))).tint(MosaicColor.accent)
+                }
+                HStack(spacing: MosaicSpace.small) {
+                    Menu {
+                        ForEach(["watchlist", "watching", "paused", "completed", "dropped"], id: \.self) { status in
+                            Button(status.replacingOccurrences(of: "_", with: " ").capitalized) { save(status) }
+                        }
+                    } label: { Label(seasonStatus?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Set season status", systemImage: "checklist") }
+                    .buttonStyle(.glass)
+                    .disabled(isSaving)
+                    if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
                 }
             }
             .padding(.horizontal, MosaicLayout.pageHorizontal)
@@ -211,6 +226,19 @@ private struct SeasonExperienceView: View {
         }
         .navigationTitle("")
         .task { model.load() }
+    }
+
+    private func save(_ status: String) {
+        guard !isSaving else { return }
+        isSaving = true; notice = nil
+        Task {
+            do {
+                let token = try await session.currentAccessToken()
+                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: DetailMutation.seasonState(series, season: seasonNumber, state: status), token: token)
+                await SeriesPersonalStateCache.shared.invalidate(series.route)
+                await MainActor.run { seasonStatus = status; notice = "Season status saved."; isSaving = false }
+            } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+        }
     }
 }
 
