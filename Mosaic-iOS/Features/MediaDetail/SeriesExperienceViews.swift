@@ -193,8 +193,9 @@ private struct SeasonRow: View {
 private struct SeasonExperienceView: View {
     let series: CatalogMedia
     let seasonNumber: Int
-    let personalState: SeriesPersonalState?
     @State private var model: SeasonEpisodesViewModel
+    @State private var personalState: SeriesPersonalState?
+    @State private var personalStateModel: SeriesPersonalStateViewModel
     @Environment(SessionStore.self) private var session
     @State private var seasonStatus: String?
     @State private var isSaving = false
@@ -203,8 +204,9 @@ private struct SeasonExperienceView: View {
     init(series: CatalogMedia, seasonNumber: Int, personalState: SeriesPersonalState?) {
         self.series = series
         self.seasonNumber = seasonNumber
-        self.personalState = personalState
         _model = State(initialValue: SeasonEpisodesViewModel(route: SeriesSeasonRoute(series: series, seasonNumber: seasonNumber), client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
+        _personalState = State(initialValue: personalState)
+        _personalStateModel = State(initialValue: SeriesPersonalStateViewModel(media: series, client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
         _seasonStatus = State(initialValue: personalState?.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state)
     }
 
@@ -246,7 +248,13 @@ private struct SeasonExperienceView: View {
             }
         }
         .navigationTitle("")
-        .task { model.load() }
+        .task {
+            model.load()
+            await refreshPersonalState(force: false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
+            Task { await refreshPersonalState(force: true) }
+        }
     }
 
     private func save(_ status: String) {
@@ -259,6 +267,18 @@ private struct SeasonExperienceView: View {
                 await SeriesPersonalStateCache.shared.invalidate(series.route)
                 await MainActor.run { seasonStatus = status; notice = "Season status saved."; isSaving = false; MosaicStateInvalidation.post() }
             } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+        }
+    }
+
+    private func refreshPersonalState(force: Bool) async {
+        if force {
+            await personalStateModel.refresh(using: session)
+        } else {
+            await personalStateModel.load(using: session)
+        }
+        if let refreshed = personalStateModel.value {
+            personalState = refreshed
+            seasonStatus = refreshed.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state
         }
     }
 }
