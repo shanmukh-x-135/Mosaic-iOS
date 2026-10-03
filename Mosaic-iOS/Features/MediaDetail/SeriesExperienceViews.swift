@@ -235,7 +235,7 @@ private struct SeasonExperienceView: View {
                 ProgressView("Loading episodes").frame(maxWidth: .infinity, minHeight: 180)
             case let .loaded(episodes):
                 ForEach(episodes) { episode in
-                    NavigationLink { EpisodeExperienceView(series: series, seasonRoute: model.route, episode: episode, episodes: episodes, watched: personalState?.watched(episode) == true) } label: {
+                    NavigationLink { EpisodeExperienceView(series: series, seasonRoute: model.route, episode: episode, episodes: episodes, watched: personalState?.watched(episode) == true, watchedCoordinates: personalState?.watchedCoordinates ?? []) } label: {
                         EpisodeRow(episode: episode, watched: personalState?.watched(episode) == true)
                     }
                     .buttonStyle(.plain)
@@ -287,18 +287,20 @@ private struct EpisodeExperienceView: View {
     let episode: CatalogEpisode
     let episodes: [CatalogEpisode]
     let watched: Bool
+    let watchedCoordinates: Set<String>
     @Environment(SessionStore.self) private var session
     @State private var isWatched: Bool
     @State private var isSaving = false
     @State private var presentsLogSheet = false
     @State private var notice: String?
 
-    init(series: CatalogMedia, seasonRoute: SeriesSeasonRoute, episode: CatalogEpisode, episodes: [CatalogEpisode], watched: Bool) {
+    init(series: CatalogMedia, seasonRoute: SeriesSeasonRoute, episode: CatalogEpisode, episodes: [CatalogEpisode], watched: Bool, watchedCoordinates: Set<String> = []) {
         self.series = series
         self.seasonRoute = seasonRoute
         self.episode = episode
         self.episodes = episodes
         self.watched = watched
+        self.watchedCoordinates = watchedCoordinates
         _isWatched = State(initialValue: watched)
     }
 
@@ -334,7 +336,7 @@ private struct EpisodeExperienceView: View {
                 }
                 .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
-            EpisodeAdjacentNavigation(series: series, seasonRoute: seasonRoute, episode: episode, episodes: episodes, watchedCoordinates: [])
+            EpisodeAdjacentNavigation(series: series, seasonRoute: seasonRoute, episode: episode, episodes: episodes, watchedCoordinates: watchedCoordinates)
         }
         .sheet(isPresented: $presentsLogSheet) { EpisodeLogSheet { date, rating in save(.episodeLog(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber, watchedAt: date, rating: rating)) } }
     }
