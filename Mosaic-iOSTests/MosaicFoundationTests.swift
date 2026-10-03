@@ -110,6 +110,29 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(media.authors, [])
     }
 
+    func testSeriesSeasonAndEpisodeRoutesUseStableProviderIdentity() {
+        let season = SeriesSeasonRoute(provider: "tmdb", seriesProviderID: "76331", seasonNumber: 1)
+        XCTAssertEqual(season.catalogPath, "/api/catalog/tmdb/tv/76331/season/1")
+        XCTAssertEqual(SeriesEpisodeRoute(season: season, episodeNumber: 3).episodeNumber, 3)
+    }
+
+    func testSeasonEpisodesDecodeNormalizedOptionalFields() throws {
+        let response = try JSONDecoder.mosaic.decode(CatalogSeasonResponse.self, from: Data(#"{"episodes":[{"id":"ep-1","seasonNumber":1,"episodeNumber":1,"title":"Pilot","overview":"A first episode.","stillUrl":"https://example.com/still.jpg","airDate":"2020-01-01","runtimeMinutes":52,"publicRating":8.4,"publicRatingCount":1000},{"id":"ep-2","seasonNumber":1,"episodeNumber":2,"title":"Second"}]}"#.utf8))
+        XCTAssertEqual(response.episodes.count, 2)
+        XCTAssertEqual(response.episodes[0].stillURL?.absoluteString, "https://example.com/still.jpg")
+        XCTAssertNil(response.episodes[1].overview)
+        XCTAssertNil(response.episodes[1].publicRating)
+    }
+
+    func testSeriesSeasonCacheUsesSeasonAsPartOfTheKey() async {
+        let first = SeriesSeasonRoute(provider: "tmdb", seriesProviderID: "76331", seasonNumber: 1)
+        let second = SeriesSeasonRoute(provider: "tmdb", seriesProviderID: "76331", seasonNumber: 2)
+        let episode = CatalogEpisode(id: "one", seasonNumber: 1, episodeNumber: 1, title: "Pilot", overview: nil, stillURL: nil, airDate: nil, runtimeMinutes: nil, publicRating: nil, publicRatingCount: nil)
+        await SeriesSeasonCache.shared.store([episode], for: first)
+        XCTAssertEqual(await SeriesSeasonCache.shared.episodes(for: first), [episode])
+        XCTAssertNil(await SeriesSeasonCache.shared.episodes(for: second))
+    }
+
     func testContinueArtworkKeepsBackdropAndPosterFallback() throws {
         let response = try decodeContinueResponse(#"""
         {"items":[{"id":"tmdb:tv:76331","mediaType":"series","provider":"tmdb","providerId":"76331","title":"Succession","posterUrl":"https://image.tmdb.org/t/p/w500/poster.jpg","backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","status":"watching","lastActivityAt":null,"progress":{"watchedEpisodes":1,"totalEpisodes":39,"percent":3},"nextAction":{"type":"log_episode"}}]}

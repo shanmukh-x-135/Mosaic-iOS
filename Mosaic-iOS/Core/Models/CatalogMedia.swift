@@ -53,6 +53,8 @@ struct CatalogMedia: Identifiable, Codable, Equatable, Sendable {
     let episodeCount: Int?
     let seasonNumbers: [Int]?
     let seasonEpisodeCounts: [String: Int]?
+    let eligibleEpisodeCounts: [String: Int]?
+    let eligibleEpisodeCount: Int?
     let network: String?
     let networkLogoURL: URL?
 
@@ -69,7 +71,7 @@ struct CatalogMedia: Identifiable, Codable, Equatable, Sendable {
         case provider, providerID = "providerId", mediaType, title, originalTitle, description
         case posterURL = "posterUrl", backdropURL = "backdropUrl", releaseDate, releaseYear, genres, communityRating
         case runtimeMinutes, director, studio, studioLogoURL = "studioLogoUrl"
-        case seasonCount, episodeCount, seasonNumbers, seasonEpisodeCounts, network, networkLogoURL = "networkLogoUrl"
+        case seasonCount, episodeCount, seasonNumbers, seasonEpisodeCounts, eligibleEpisodeCounts, eligibleEpisodeCount, network, networkLogoURL = "networkLogoUrl"
         case platforms, developer, publisher, subtitle, authors, pageCount, isbn
     }
 
