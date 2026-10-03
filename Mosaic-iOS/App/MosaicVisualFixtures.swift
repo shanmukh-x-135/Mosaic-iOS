@@ -27,6 +27,7 @@ struct MosaicVisualFixtureGallery: View {
         let arguments = ProcessInfo.processInfo.arguments
         let initial: FixtureTab
         switch arguments.firstIndex(of: "-mosaic-visual-screen").flatMap({ arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }) {
+        case "home-lower": initial = .home
         case "discover": initial = .discover
         case "library": initial = .library
         case "profile": initial = .profile
@@ -53,7 +54,7 @@ struct MosaicVisualFixtureGallery: View {
 
     private var tabs: some View {
         TabView(selection: $selectedTab) {
-            FixtureHome().tabItem { Label("Home", systemImage: "house.fill") }.tag(FixtureTab.home)
+            FixtureHome(lowerContentOnly: ProcessInfo.processInfo.arguments.contains("-mosaic-visual-home-lower")).tabItem { Label("Home", systemImage: "house.fill") }.tag(FixtureTab.home)
             FixtureDiscover().tabItem { Label("Discover", systemImage: "sparkles") }.tag(FixtureTab.discover)
             Color.clear.accessibilityHidden(true).tabItem { Label("Log", systemImage: "plus") }.tag(FixtureTab.log)
             FixtureLibrary().tabItem { Label("Library", systemImage: "books.vertical.fill") }.tag(FixtureTab.library)
@@ -67,12 +68,15 @@ struct MosaicVisualFixtureGallery: View {
 }
 
 private struct FixtureHome: View {
+    let lowerContentOnly: Bool
     var body: some View { MosaicScreen {
-        VStack(alignment: .leading, spacing: MosaicSpace.small) {
-            MosaicEyebrow(title: "Your mosaic")
-            Text("Good evening").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-        }.padding(.horizontal, MosaicLayout.pageHorizontal)
-        FixtureHero(media: MosaicVisualFixtures.digger)
+        if !lowerContentOnly {
+            VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                MosaicEyebrow(title: "Your mosaic")
+                Text("Good evening").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+            }.padding(.horizontal, MosaicLayout.pageHorizontal)
+            FixtureHero(media: MosaicVisualFixtures.digger)
+        }
         FixtureRail(title: "Continue watching", eyebrow: "Keep going", items: [MosaicVisualFixtures.succession, MosaicVisualFixtures.friends, MosaicVisualFixtures.spiderMan])
         FixtureActivity(title: "Recently logged", eyebrow: "Your story", items: [MosaicVisualFixtures.loveHypothesis, MosaicVisualFixtures.digger])
     } }
