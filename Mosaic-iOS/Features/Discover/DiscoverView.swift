@@ -27,22 +27,41 @@ final class DiscoverViewModel {
 
 struct DiscoverView: View {
     @State private var model = DiscoverViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
+    @State private var search = SearchViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
 
     var body: some View {
         NavigationStack {
             Group {
-                switch model.state {
-                case .loading: DiscoverSkeleton()
-                case let .loaded(response): DiscoverContent(response: response, filter: $model.filter)
-                case .failed:
-                    ContentUnavailableView("Discovery is taking a breather", systemImage: "sparkles", description: Text("Try again shortly to see live Mosaic catalogs."))
-                        .foregroundStyle(MosaicColor.secondaryText)
+                if search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    switch model.state {
+                    case .loading: DiscoverSkeleton()
+                    case let .loaded(response): DiscoverContent(response: response, filter: $model.filter)
+                    case .failed:
+                        ContentUnavailableView("Discovery is taking a breather", systemImage: "sparkles", description: Text("Try again shortly to see live Mosaic catalogs."))
+                            .foregroundStyle(MosaicColor.secondaryText)
+                    }
+                } else {
+                    DiscoverSearchContent(model: search)
                 }
             }
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
             .task { model.load() }
             .refreshable { model.retry() }
+        }
+    }
+}
+
+private struct DiscoverSearchContent: View {
+    let model: SearchViewModel
+    var body: some View {
+        switch model.state {
+        case .noQuery, .minimumQuery: ContentUnavailableView("Keep typing", systemImage: "text.magnifyingglass", description: Text("Enter at least 2 characters to search Mosaic."))
+        case .loading: SearchSkeleton(embedded: true)
+        case let .results(items, partialFailure): SearchResults(items: items, partialFailure: partialFailure, embedded: true)
+        case let .empty(partialFailure): ContentUnavailableView("No matches", systemImage: "sparkle.magnifyingglass", description: Text(partialFailure ?? "Try another title."))
+        case let .error(error): ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message))
         }
     }
 }
