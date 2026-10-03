@@ -18,6 +18,7 @@ struct LibraryView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Menu { Picker("Sort", selection: $model.sort) { ForEach(LibrarySort.allCases) { Text($0.title).tag($0) } } } label: { Label("Sort", systemImage: "arrow.up.arrow.down") } } }
             .task { model.load() }
+            .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in model.refresh() }
         }
     }
     private var filterBar: some View { ScrollView(.horizontal) { HStack(spacing: MosaicSpace.small) { ForEach(LibraryMediaFilter.allCases) { filter in Button { model.mediaFilter = filter } label: { MosaicFilterChip(title: filter.title, selected: model.mediaFilter == filter) }.accessibilityAddTraits(model.mediaFilter == filter ? .isSelected : []) } }.padding(.horizontal, MosaicLayout.pageHorizontal).padding(.vertical, MosaicSpace.medium) }.scrollIndicators(.hidden) }

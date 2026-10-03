@@ -270,7 +270,7 @@ private struct DetailTrackingActions: View {
             do {
                 let token = try await session.currentAccessToken()
                 try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
-                await MainActor.run { notice = "Saved to your Mosaic."; isSaving = false; personal.refresh() }
+                await MainActor.run { notice = "Saved to your Mosaic."; isSaving = false; personal.refresh(); MosaicStateInvalidation.post() }
             } catch {
                 await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false }
             }

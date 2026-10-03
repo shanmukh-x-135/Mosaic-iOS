@@ -21,7 +21,7 @@ struct SeriesHubView: View {
 
     var body: some View {
         MosaicScreen {
-            MosaicArtwork(url: media.backdropURL, fallbackURL: media.posterURL, symbol: "tv")
+            SeriesHeroArtwork(media: media)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
                 .padding(.horizontal, MosaicLayout.pageHorizontal)
@@ -63,6 +63,27 @@ struct SeriesHubView: View {
             }
         }
         .task { await state.load(using: session) }
+    }
+}
+
+private struct SeriesHeroArtwork: View {
+    let media: CatalogMedia
+    var body: some View {
+        Group {
+            if let backdrop = media.backdropURL {
+                MosaicArtwork(url: backdrop, fallbackURL: media.posterURL, symbol: "tv")
+            } else if let poster = media.posterURL {
+                ZStack {
+                    LinearGradient(colors: [MosaicColor.surface, MosaicColor.elevated], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    MosaicArtwork(url: poster, symbol: "tv")
+                        .frame(width: 116)
+                        .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
+                        .padding(MosaicSpace.medium)
+                }
+            } else {
+                MosaicArtwork(url: nil, symbol: "tv")
+            }
+        }
     }
 }
 
@@ -140,7 +161,7 @@ private struct SeriesPersonalStory: View {
                 let token = try await session.currentAccessToken()
                 try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
                 await SeriesPersonalStateCache.shared.invalidate(media.route)
-                await MainActor.run { notice = "Saved to your Mosaic."; isSaving = false }
+                await MainActor.run { notice = "Saved to your Mosaic."; isSaving = false; MosaicStateInvalidation.post() }
                 await state.refresh(using: session)
             } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
         }
@@ -236,7 +257,7 @@ private struct SeasonExperienceView: View {
                 let token = try await session.currentAccessToken()
                 try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: DetailMutation.seasonState(series, season: seasonNumber, state: status), token: token)
                 await SeriesPersonalStateCache.shared.invalidate(series.route)
-                await MainActor.run { seasonStatus = status; notice = "Season status saved."; isSaving = false }
+                await MainActor.run { seasonStatus = status; notice = "Season status saved."; isSaving = false; MosaicStateInvalidation.post() }
             } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
         }
     }
@@ -329,7 +350,7 @@ private struct EpisodeExperienceView: View {
                 seriesLogger.debug("Episode mutation completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
                 await SeriesPersonalStateCache.shared.invalidate(series.route)
                 await SeriesSeasonCache.shared.invalidate(seasonRoute)
-                await MainActor.run { isWatched = mutation.type == "episode.log"; notice = isWatched ? "Episode logged." : "Episode marked unwatched."; isSaving = false }
+                await MainActor.run { isWatched = mutation.type == "episode.log"; notice = isWatched ? "Episode logged." : "Episode marked unwatched."; isSaving = false; MosaicStateInvalidation.post() }
             } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
         }
     }

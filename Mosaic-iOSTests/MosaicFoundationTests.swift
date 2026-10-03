@@ -149,6 +149,14 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertLessThan(ContinueCardLayout.width(for: 430), 430 - MosaicLayout.pageHorizontal)
     }
 
+    func testSuccessfulMutationInvalidationPublishesOneSharedRefreshSignal() {
+        let expectation = expectation(description: "state invalidation")
+        let observer = NotificationCenter.default.addObserver(forName: .mosaicStateDidChange, object: nil, queue: .main) { _ in expectation.fulfill() }
+        MosaicStateInvalidation.post()
+        wait(for: [expectation], timeout: 1)
+        NotificationCenter.default.removeObserver(observer)
+    }
+
     func testContinueArtworkKeepsBackdropAndPosterFallback() throws {
         let response = try decodeContinueResponse(#"""
         {"items":[{"id":"tmdb:tv:76331","mediaType":"series","provider":"tmdb","providerId":"76331","title":"Succession","posterUrl":"https://image.tmdb.org/t/p/w500/poster.jpg","backdropUrl":"https://image.tmdb.org/t/p/w1280/backdrop.jpg","status":"watching","lastActivityAt":null,"progress":{"watchedEpisodes":1,"totalEpisodes":39,"percent":3},"nextAction":{"type":"log_episode"}}]}

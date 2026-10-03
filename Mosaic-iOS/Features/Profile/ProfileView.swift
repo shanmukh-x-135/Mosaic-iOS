@@ -30,6 +30,7 @@ struct ProfileView: View {
             .background(MosaicColor.background)
             .navigationBarTitleDisplayMode(.inline)
             .task { model.load() }
+            .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in model.retry() }
             .refreshable { model.retry() }
         }
     }

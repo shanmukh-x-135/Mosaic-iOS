@@ -40,6 +40,9 @@ struct HomeView: View {
             .background(MosaicColor.background)
             .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
             .task { model.load(); discovery.load(); library.load(); activity.load() }
+            .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
+                model.retry(); library.refresh(); activity.refresh()
+            }
             .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
         }
     }
