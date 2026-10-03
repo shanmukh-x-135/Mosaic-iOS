@@ -36,13 +36,15 @@ struct MosaicScreen<Content: View>: View {
     @ViewBuilder var content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, MosaicSpace.large)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: MosaicSpace.xLarge) { content }
+                    .frame(width: proxy.size.width, alignment: .leading)
+                    .padding(.vertical, MosaicSpace.large)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .background(MosaicColor.background)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(MosaicColor.background)
     }
 }
 
