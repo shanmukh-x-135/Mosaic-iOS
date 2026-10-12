@@ -13,14 +13,18 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(OAuthCallback.url.absoluteString, "mosaic://auth/callback")
     }
 
-    func testNativeTabRouterInterceptsLogAndRestoresThePreviousContentTab() {
-        var router = MosaicTabRouter()
-        XCTAssertFalse(router.activate(.discover))
-        XCTAssertEqual(router.activeTab, .discover)
-        XCTAssertTrue(router.activate(.log))
-        XCTAssertEqual(router.activeTab, .discover)
-        XCTAssertFalse(router.activate(.library))
-        XCTAssertEqual(router.activeTab, .library)
+    func testRouterSwitchesTabsPopsOnReselectAndPresentsQuickLogWithoutChangingTab() {
+        let router = MosaicRouter()
+        router.select(.discover)
+        XCTAssertEqual(router.selectedTab, .discover)
+        router.open(.activity)
+        XCTAssertEqual(router.paths[.discover], [.activity])
+        router.select(.discover)
+        XCTAssertEqual(router.paths[.discover], [])
+        router.presentQuickLog()
+        XCTAssertTrue(router.isQuickLogPresented)
+        XCTAssertEqual(router.selectedTab, .discover)
+        XCTAssertFalse(MosaicTab.allCases.map(\.rawValue).contains("log"))
     }
 
     #if DEBUG
@@ -67,7 +71,8 @@ final class MosaicFoundationTests: XCTestCase {
         {"items":[{"id":"tmdb:tv:1","media_type":"series","provider":"tmdb","provider_id":"1","title":"Orbit","status":"watching","last_activity_at":"2026-09-21T18:22:00.000Z","progress":{"watched_episodes":14,"total_episodes":null,"percent":null,"next_season_number":2,"next_episode_number":1},"next_action":{"type":"log_episode","season_number":2,"episode_number":1}}]}
         """#)
         let story = try XCTUnwrap(response.items.first.map(ContinueStory.init(dto:)))
-        XCTAssertEqual(story.progress.detailLines, ["Next: S2E1", "14 episodes"])
+        XCTAssertEqual(story.progress.detailLines, ["14 episodes watched"])
+        XCTAssertEqual(story.actionTitle, "Up next · S02E01")
         XCTAssertNil(story.progress.progressFraction)
     }
 
@@ -79,7 +84,8 @@ final class MosaicFoundationTests: XCTestCase {
         ]}
         """#)
         let stories = response.items.map(ContinueStory.init(dto:))
-        XCTAssertEqual(stories[0].progress.detailLines, ["312 / 688 pages"])
+        XCTAssertEqual(stories[0].progress.detailLines, ["Page 312 of 688"])
+        XCTAssertEqual(stories[0].actionTitle, "Continue reading")
         XCTAssertEqual(stories[0].progress.progressFraction, 0.45)
         XCTAssertEqual(stories[1].progress.detailLines, ["4h 5m played"])
         XCTAssertNil(stories[1].progress.progressFraction)
@@ -97,8 +103,8 @@ final class MosaicFoundationTests: XCTestCase {
         XCTAssertEqual(response.items.map(\.mediaType), [.movie, .tv, .game, .book])
         XCTAssertEqual(response.items[0].route, MediaDetailRoute(provider: "tmdb", mediaType: .movie, providerID: "1"))
         XCTAssertEqual(response.items[0].artworkURL?.absoluteString, "https://example.com/movie.jpg")
-        XCTAssertEqual(response.items[2].resultMetadata, "Game · Switch")
-        XCTAssertEqual(response.items[3].resultMetadata, "Book · Frank Herbert")
+        XCTAssertEqual(response.items[2].resultMetadata, "Switch")
+        XCTAssertEqual(response.items[3].resultMetadata, "Frank Herbert")
     }
 
     func testCatalogDetailOptionalFieldsAndArtworkFallback() throws {
@@ -144,8 +150,9 @@ final class MosaicFoundationTests: XCTestCase {
     }
 
     func testContinueCardWidthUsesTheLocalViewportAndPreservesAPeek() {
-        XCTAssertEqual(ContinueCardLayout.width(for: 393), 296.52, accuracy: 0.01)
-        XCTAssertEqual(ContinueCardLayout.width(for: 320), ContinueCardLayout.minimumWidth)
+        XCTAssertEqual(ContinueCardLayout.width(for: 393), 303.24, accuracy: 0.01)
+        XCTAssertEqual(ContinueCardLayout.width(for: 1024), ContinueCardLayout.maximumWidth)
+        XCTAssertEqual(ContinueCardLayout.width(for: 280), ContinueCardLayout.minimumWidth)
         XCTAssertLessThan(ContinueCardLayout.width(for: 430), 430 - MosaicLayout.pageHorizontal)
     }
 
@@ -210,7 +217,7 @@ final class MosaicFoundationTests: XCTestCase {
 
     func testMobileLayoutTokensFitTheNarrowestSupportedPhoneWidth() {
         let narrowPhoneWidth: CGFloat = 320
-        XCTAssertEqual(MosaicLayout.pageHorizontal, 20)
+        XCTAssertEqual(MosaicLayout.pageHorizontal, 16)
         let contentWidth = narrowPhoneWidth - (MosaicLayout.pageHorizontal * 2)
         XCTAssertGreaterThan(contentWidth, 0)
         XCTAssertLessThanOrEqual(MosaicLayout.posterWidth, contentWidth)
@@ -290,23 +297,35 @@ final class MosaicFoundationTests: XCTestCase {
         let response = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:1396","mediaType":"tv","provider":"tmdb","providerId":"1396","title":"Breaking Bad","status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":14,"totalEpisodes":62,"percent":23,"nextSeasonNumber":2,"nextEpisodeNumber":1}}]}"#.utf8))
         let item = try XCTUnwrap(response.items.first)
         XCTAssertEqual(item.route, MediaDetailRoute(provider: "tmdb", mediaType: .tv, providerID: "1396"))
-        XCTAssertEqual(item.progress?.displayText, "Next S2E1 · 14 / 62 episodes")
-        XCTAssertEqual(item.ratingText, "4.5 ★")
+        XCTAssertEqual(item.progressLine?.text, "14 / 62 episodes · next S02E01")
+        XCTAssertEqual(item.progressLine?.fraction ?? 0, 0.23, accuracy: 0.001)
+        XCTAssertEqual(item.ratingText, "★ 4.5")
+        XCTAssertEqual(item.statusLabel, "Watching")
     }
 
     func testLibraryProgressOmitsZeroAndUnknownValues() throws {
-        let progress = try JSONDecoder.mosaic.decode(LibraryProgressDTO.self, from: Data(#"{"watchedEpisodes":0,"totalEpisodes":null,"percent":null}"#.utf8))
-        XCTAssertNil(progress.displayText)
+        let items = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:tv:9","mediaType":"tv","provider":"tmdb","providerId":"9","title":"Unstarted","status":"watchlist","userRating":null,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"watchedEpisodes":0,"totalEpisodes":null,"percent":null}},{"id":"igdb:game:4","mediaType":"game","provider":"igdb","providerId":"4","title":"Fresh","status":"playing","userRating":null,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"playtimeMinutes":0,"percent":null}},{"id":"googlebooks:book:5","mediaType":"book","provider":"googlebooks","providerId":"5","title":"Unknown total","status":"reading","userRating":null,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z","progress":{"currentPage":40,"totalPages":null,"percent":null}}]}"#.utf8)).items
+        XCTAssertNil(items[0].progressLine, "Zero watched with an unknown total is not progress")
+        XCTAssertNil(items[1].progressLine, "No playtime or percent recorded yet")
+        XCTAssertNil(items[2].progressLine, "A page without a known total is not a fabricated percentage")
     }
 
     func testLibraryFiltersAndSortsLocallyWithoutDetailFanout() async throws {
         let items = try JSONDecoder.mosaic.decode(LibraryResponseDTO.self, from: Data(#"{"items":[{"id":"tmdb:movie:1","mediaType":"movie","provider":"tmdb","providerId":"1","title":"Zulu","releaseYear":2020,"status":"watched","userRating":3,"isFavorite":false,"updatedAt":"2026-09-18T10:00:00.000Z"},{"id":"igdb:game:2","mediaType":"game","provider":"igdb","providerId":"2","title":"Alpha","releaseYear":2024,"status":"playing","userRating":5,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z"}]}"#.utf8)).items
-        let model = LibraryViewModel(request: { items })
-        model.load(); await waitForHomeLoad()
+        let model = LibraryViewModel()
         model.mediaFilter = .games
-        XCTAssertEqual(model.visibleItems.map(\.title), ["Alpha"])
+        XCTAssertEqual(model.visibleItems(from: items).map(\.title), ["Alpha"])
+        XCTAssertEqual(model.availableStatuses, [.backlog, .playing, .paused, .completed, .dropped])
+        model.statusFilter = .playing
+        XCTAssertEqual(model.count(of: .playing, in: items), 1)
+        model.mediaFilter = .movies
+        XCTAssertNil(model.statusFilter, "A status filter never survives a medium change")
         model.mediaFilter = .all; model.sort = .title
-        XCTAssertEqual(model.visibleItems.map(\.title), ["Alpha", "Zulu"])
+        XCTAssertEqual(model.visibleItems(from: items).map(\.title), ["Alpha", "Zulu"])
+        model.query = " zu "
+        XCTAssertEqual(model.visibleItems(from: items).map(\.title), ["Zulu"])
+        XCTAssertEqual(model.count(of: .games, in: items), 1)
+        XCTAssertEqual(LibraryViewModel.summary(of: items), "2 tracked · 1 movie · 1 game")
     }
 
     func testHomeErrorPresentationMapsAPIError() {

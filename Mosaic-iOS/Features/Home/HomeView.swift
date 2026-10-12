@@ -1,75 +1,178 @@
 import Observation
 import SwiftUI
 
+/// Home follows the web's order: discovery reel, Continue, Recently logged,
+/// Saved for later, Worth a closer look. Personal sections only show real
+/// history; a failed load says so instead of silently disappearing.
 struct HomeView: View {
-    @State private var model: HomeViewModel
-    @State private var discovery = DiscoverViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))
-    @State private var library: LibraryViewModel
-    @State private var activity: HomeActivityViewModel
-    @State private var search: SearchViewModel
+    @Environment(\.mosaicServices) private var services
+    var body: some View { HomeScreen(services: services) }
+}
 
-    init(session: SessionStore) {
-        let client = MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)
-        _model = State(initialValue: HomeViewModel(
-            client: client,
-            accessToken: { try await session.currentAccessToken() }
-        ))
-        _library = State(initialValue: LibraryViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
-        _activity = State(initialValue: HomeActivityViewModel(client: client, accessToken: { try await session.currentAccessToken() }))
-        _search = State(initialValue: SearchViewModel(client: client))
+private struct HomeScreen: View {
+    let services: MosaicServices
+    @State private var model: HomeViewModel
+    @State private var activity = Loadable<[ProfileActivity]>.idle
+    @State private var discovery = Loadable<CatalogDiscoverResponse>.idle
+    @Environment(LibraryStore.self) private var library
+    @Environment(MosaicRouter.self) private var router
+
+    init(services: MosaicServices) {
+        self.services = services
+        _model = State(initialValue: HomeViewModel(requestStories: services.continueItems))
     }
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { viewport in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
-                        if search.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            HomeHeader()
-                            if case let .loaded(response) = discovery.state, let featured = response.items.first ?? response.sections.flatMap(\.items).first { HomeFeaturedStory(media: featured) }
-                            content(viewportWidth: viewport.size.width)
-                            if case let .loaded(items) = activity.state, !items.isEmpty { HomeActivityRail(items: items) }
-                            if case .loaded = library.state { HomeSavedRail(items: library.items) }
-                            if case let .loaded(response) = discovery.state, !response.items.isEmpty { HomeDiscoveryRail(items: Array(response.items.prefix(12))) }
-                        } else {
-                            HomeSearchContent(model: search)
+        MosaicScreen {
+            HomeHeader()
+            reel
+            if personalLoadFailed {
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    MosaicNotice(text: "Your progress couldn’t be loaded, so Continue and Recently logged are hidden.", tone: .failure)
+                    Button("Try again", action: reloadPersonal).font(.subheadline.weight(.semibold))
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+            continueSection
+            recentSection
+            savedSection
+            closerLookSection
+        }
+        .navigationTitle("Home")
+        .toolbar(.hidden, for: .navigationBar)
+        .task {
+            model.load()
+            if case .idle = activity { await loadActivity() }
+            if case .idle = discovery { await loadDiscovery() }
+        }
+        .refreshable {
+            model.retry(); library.refresh(services)
+            await loadActivity(); await loadDiscovery()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
+            model.retry(); Task { await loadActivity() }
+        }
+    }
+
+    private var personalLoadFailed: Bool {
+        if case .error = model.state { return true }
+        if case .failed = activity { return true }
+        return false
+    }
+
+    @ViewBuilder private var reel: some View {
+        switch discovery {
+        case let .loaded(response):
+            let picks = HomeDiscoveryPicks.picks(from: response)
+            if !picks.isEmpty { SpotlightPager(items: picks, eyebrow: "Discovery pick", source: "One pick from each medium") }
+        case .idle, .loading:
+            MosaicSkeleton(aspectRatio: 1.15).padding(.horizontal, MosaicLayout.pageHorizontal).accessibilityLabel("Loading discovery")
+        case .failed:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private var continueSection: some View {
+        switch model.state {
+        case .idle, .loading:
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
+                MosaicSkeleton(aspectRatio: 1.6).padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading your stories")
+        case let .loaded(stories):
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
+                ContinueRail(stories: stories)
+            }
+        case .empty:
+            HomeEmptyContinue()
+        case .error:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder private var recentSection: some View {
+        if case let .loaded(items) = activity, !items.isEmpty {
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Recently logged", eyebrow: "Your story") {
+                    NavigationLink("View activity", value: MosaicRoute.activity)
+                }
+                VStack(spacing: MosaicSpace.small) {
+                    ForEach(items.prefix(4)) { event in
+                        NavigationLink(value: MosaicRoute.media(event.media)) {
+                            ActivityEventRow(event: event)
                         }
+                        .buttonStyle(.plain)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, MosaicSpace.large)
                 }
-                .background(MosaicColor.background)
-                .searchable(text: $search.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Movies, series, games, and books")
-                .task { model.load(); discovery.load(); library.load(); activity.load() }
-                .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
-                    model.retry(); library.refresh(); activity.refresh()
-                }
-                .refreshable { model.retry(); discovery.retry(); library.refresh(); activity.refresh() }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
         }
     }
 
-    @ViewBuilder private func content(viewportWidth: CGFloat) -> some View {
-        switch model.state {
-        case .idle, .loading: ContinueSkeleton()
-        case let .loaded(stories): ContinueRail(stories: stories, viewportWidth: viewportWidth)
-        case .empty: HomeEmptyState()
-        case let .error(error): HomeErrorState(error: error, retry: model.retry)
+    @ViewBuilder private var savedSection: some View {
+        let saved = library.items.filter { $0.libraryStatus?.isPlanned == true }
+        if !saved.isEmpty {
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Watchlist, backlog & reading list", eyebrow: "Saved for later") {
+                    Button("Open Library") { router.select(.library) }
+                }
+                MosaicRail {
+                    ForEach(saved.prefix(12)) { item in
+                        NavigationLink(value: MosaicRoute.media(item)) {
+                            MosaicPosterCard(summary: MosaicMediaSummary(item, subtitle: item.statusLabel), showsMedium: true)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
         }
+    }
+
+    @ViewBuilder private var closerLookSection: some View {
+        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+            MosaicSectionHeader("Worth a closer look", eyebrow: "A fresh discovery") {
+                Button("Browse") { router.select(.discover) }
+            }
+            switch discovery {
+            case let .loaded(response) where !response.items.isEmpty:
+                MosaicPosterShelf(items: Array(response.items.prefix(12)), showsMedium: true)
+            case .idle, .loading:
+                MosaicRail { ForEach(0..<4, id: \.self) { _ in MosaicSkeleton(aspectRatio: MosaicArtworkRatio.poster).frame(width: MosaicLayout.posterWidth) } }
+            default:
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    Text("Discovery is temporarily unavailable. Try again shortly.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
+                    Button("Try again") { Task { await loadDiscovery() } }.font(.subheadline.weight(.semibold))
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+        }
+    }
+
+    private func reloadPersonal() { model.retry(); Task { await loadActivity() } }
+
+    private func loadActivity() async {
+        if activity.value == nil { activity = .loading }
+        do { activity = .loaded(try await services.activity(6)) }
+        catch is CancellationError {}
+        catch { if activity.value == nil { activity = .failed(error) } }
+    }
+
+    private func loadDiscovery() async {
+        if discovery.value == nil { discovery = .loading }
+        do { discovery = .loaded(try await services.discover()) }
+        catch is CancellationError {}
+        catch { if discovery.value == nil { discovery = .failed(error) } }
     }
 }
 
-private struct HomeSearchContent: View {
-    let model: SearchViewModel
-    var body: some View {
-        switch model.state {
-        case .noQuery, .minimumQuery:
-            ContentUnavailableView("Keep typing", systemImage: "text.magnifyingglass", description: Text("Enter at least 2 characters to search Mosaic."))
-                .frame(maxWidth: .infinity, minHeight: 240)
-        case .loading: SearchSkeleton(embedded: true)
-        case let .results(items, partialFailure): SearchResults(items: items, partialFailure: partialFailure, embedded: true)
-        case let .empty(partialFailure): ContentUnavailableView("No matches", systemImage: "sparkle.magnifyingglass", description: Text(partialFailure ?? "Try another title."))
-        case let .error(error): VStack(spacing: MosaicSpace.medium) { ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message)); Button("Try again", action: model.retry).buttonStyle(.borderedProminent) }.frame(maxWidth: .infinity, minHeight: 240)
+/// One featured pick per medium, so Home's reel is never movie-only.
+enum HomeDiscoveryPicks {
+    static func picks(from response: CatalogDiscoverResponse) -> [CatalogMedia] {
+        DiscoverRails.rails(response.sections, type: nil).compactMap { section in
+            section.items.first { $0.backdropURL != nil } ?? section.items.first
         }
     }
 }
@@ -77,194 +180,71 @@ private struct HomeSearchContent: View {
 private struct HomeHeader: View {
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: .now)
-        return hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+        return hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
     }
     var body: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .center, spacing: MosaicSpace.medium) {
+            VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
                 MosaicEyebrow(title: greeting)
-                Text("Your stories").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
+                Text("Every story, in one place").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).accessibilityAddTraits(.isHeader)
             }
-            Spacer()
-            Image("MosaicEmblem").resizable().scaledToFit().frame(width: 34, height: 34).accessibilityLabel("Mosaic")
+            Spacer(minLength: 0)
+            QuickLogButton()
         }
-        .padding(.horizontal, MosaicLayout.screenMargin)
+        .padding(.horizontal, MosaicLayout.pageHorizontal)
+        .padding(.top, MosaicSpace.small)
+    }
+}
+
+/// Home's header hosts Quick Log directly because its navigation bar is hidden.
+private struct QuickLogButton: View {
+    @Environment(MosaicRouter.self) private var router
+    var body: some View {
+        Button { router.presentQuickLog() } label: {
+            Image(systemName: "plus")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(MosaicColor.primaryText)
+                .frame(width: 36, height: 36)
+                .background(MosaicColor.surfaceHover, in: Circle())
+                .overlay { Circle().strokeBorder(MosaicColor.highlight) }
+                .frame(width: MosaicLayout.minimumTouchTarget, height: MosaicLayout.minimumTouchTarget)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Log something")
+        .accessibilityHint("Search for a movie, series, game, or book to log")
     }
 }
 
 private struct ContinueRail: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let stories: [ContinueStory]
-    let viewportWidth: CGFloat
     var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: MosaicSpace.medium) {
-                    Color.clear.frame(width: MosaicLayout.pageHorizontal)
-                    ForEach(stories) { story in
-                        NavigationLink {
-                            MediaDetailContainer(route: story.detailRoute, preview: MediaDetailPreview(story: story))
-                        } label: {
-                            ContinueStoryCard(story: story, width: ContinueCardLayout.width(for: viewportWidth))
-                        }
-                        .buttonStyle(.plain)
-                    }
+        MosaicRail(spacing: MosaicSpace.medium) {
+            ForEach(stories) { story in
+                NavigationLink(value: MosaicRoute.media(story)) {
+                    ContinueStoryCard(story: story, width: nil)
+                        // Sized from the rail's visible width, leaving a peek of the next card.
+                        .containerRelativeFrame(.horizontal) { length, _ in ContinueCardLayout.width(for: length, gutter: 0) }
                 }
-                .scrollTargetLayout()
-            }
-            .scrollIndicators(.hidden)
-            .scrollTargetBehavior(.viewAligned)
-            .frame(height: ContinueCardLayout.height(for: dynamicTypeSize))
-        }
-    }
-}
-
-private struct ContinueSkeleton: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            MosaicSectionHeader("Continue your stories", eyebrow: "In progress")
-            RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous)
-                .fill(MosaicColor.surface)
-                .frame(maxWidth: .infinity)
-                .frame(height: 228)
-                .overlay(alignment: .bottomLeading) { VStack(alignment: .leading, spacing: 10) { Capsule().fill(Color.white.opacity(0.16)).frame(width: 70, height: 10); Capsule().fill(Color.white.opacity(0.18)).frame(width: 180, height: 22); Capsule().fill(Color.white.opacity(0.14)).frame(width: 130, height: 12) }.padding(MosaicSpace.medium) }
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
-                .redacted(reason: .placeholder)
-                .accessibilityLabel("Loading your stories")
-        }
-        .opacity(reduceMotion ? 1 : 0.88)
-    }
-}
-
-private struct HomeFeaturedStory: View {
-    let media: CatalogMedia
-    var body: some View {
-        NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: {
-            ZStack(alignment: .bottomLeading) {
-                MosaicArtwork(url: media.backdropURL, fallbackURL: media.posterURL, symbol: media.mediaType.symbolName)
-                LinearGradient(colors: [.clear, MosaicColor.background.opacity(0.98)], startPoint: .top, endPoint: .bottom)
-                VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                    MosaicEyebrow(title: "Discovery pick")
-                    Text(media.title).font(MosaicType.hero).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
-                    HStack(spacing: MosaicSpace.small) { if let year = media.releaseYear { Text(String(year)) }; if let genre = media.genres.first { Text(genre) }; if let rating = media.communityRating { MosaicRating(value: rating) } }.font(.footnote).foregroundStyle(MosaicColor.secondaryText)
-                    Label("View story", systemImage: "play.fill").font(.subheadline.weight(.bold)).foregroundStyle(MosaicColor.background).padding(.horizontal, 14).padding(.vertical, 10).background(MosaicColor.primaryText, in: Capsule())
-                }.padding(MosaicSpace.large)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 230)
-            .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-            .padding(.horizontal, MosaicLayout.screenMargin)
-        }.buttonStyle(.plain)
-    }
-}
-
-private struct HomeDiscoveryRail: View {
-    let items: [CatalogMedia]
-    var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            MosaicSectionHeader("Worth a closer look", eyebrow: "A fresh discovery")
-            ScrollView(.horizontal) { LazyHStack(spacing: MosaicSpace.medium) { ForEach(items) { media in NavigationLink { MediaDetailContainer(route: media.route, preview: MediaDetailPreview(media: media)) } label: { DiscoverPoster(media: media) }.buttonStyle(.plain) } }.padding(.horizontal, MosaicLayout.pageHorizontal) }.scrollIndicators(.hidden)
-        }
-    }
-}
-
-private struct HomeActivityRail: View {
-    let items: [ProfileActivity]
-    var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            MosaicSectionHeader("Recently logged", eyebrow: "Your history")
-            VStack(spacing: MosaicSpace.small) {
-                ForEach(items.prefix(4)) { item in
-                    NavigationLink { MediaDetailContainer(route: item.media.route, preview: MediaDetailPreview(media: item.media)) } label: {
-                        HStack(spacing: MosaicSpace.medium) {
-                            MosaicArtwork(url: item.media.posterURL, fallbackURL: item.media.backdropURL, symbol: item.media.mediaType.symbolName)
-                                .frame(width: 48, height: 64)
-                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(item.media.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(1)
-                                Text(item.label).font(.caption).foregroundStyle(MosaicColor.secondaryText)
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, MosaicLayout.screenMargin)
-                    }
-                    .buttonStyle(.plain)
-                }
+                .buttonStyle(.plain)
             }
         }
     }
 }
 
-private struct HomeSavedRail: View {
-    let items: [LibraryItemDTO]
-    private var saved: [LibraryItemDTO] { items.filter { ["watchlist", "backlog", "want_to_read"].contains($0.status) } }
+private struct HomeEmptyContinue: View {
+    @Environment(MosaicRouter.self) private var router
     var body: some View {
-        if !saved.isEmpty {
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                MosaicSectionHeader("Saved for later", eyebrow: "Your watchlist")
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: MosaicSpace.medium) {
-                        ForEach(saved.prefix(12)) { item in
-                            NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: {
-                                VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                                    MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName)
-                                        .frame(width: MosaicLayout.posterWidth, height: MosaicLayout.posterHeight)
-                                        .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
-                                    Text(item.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(1).frame(width: MosaicLayout.posterWidth, alignment: .leading)
-                                }
-                            }.buttonStyle(.plain)
-                        }
-                    }.padding(.horizontal, MosaicLayout.screenMargin)
-                }.scrollIndicators(.hidden).frame(maxWidth: .infinity)
-            }
-        }
-    }
-}
-
-@MainActor @Observable
-private final class HomeActivityViewModel {
-    enum State { case idle, loading, loaded([ProfileActivity]), failed }
-    private let request: @MainActor () async throws -> [ProfileActivity]
-    private var task: Task<Void, Never>?
-    private(set) var state: State = .idle
-    init(client: MosaicAPIClient, accessToken: @escaping @MainActor () async throws -> String) {
-        request = { let token = try await accessToken(); return try await client.request("/api/me/activity?limit=4", token: token, as: ProfileActivityResponse.self).items }
-    }
-    func load() {
-        guard task == nil else { return }
-        state = .loading
-        task = Task { [weak self] in
-            guard let self else { return }; defer { self.task = nil }
-            do { self.state = .loaded(try await self.request()) }
-            catch is CancellationError { self.state = .idle }
-            catch { self.state = .failed }
-        }
-    }
-    func refresh() { task?.cancel(); task = nil; state = .idle; load() }
-}
-
-private struct HomeEmptyState: View {
-    var body: some View {
-        ContentUnavailableView("Nothing in progress yet", systemImage: "play.rectangle", description: Text("Start a series, book, or game and it will appear here."))
-            .foregroundStyle(MosaicColor.secondaryText)
-            .frame(maxWidth: .infinity, minHeight: 310)
-            .padding(.horizontal, MosaicLayout.pageHorizontal)
-    }
-}
-
-private struct HomeErrorState: View {
-    let error: HomeErrorPresentation
-    let retry: () -> Void
-    var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            Text(error.title).font(MosaicType.title).foregroundStyle(MosaicColor.primaryText)
-            Text(error.message).foregroundStyle(MosaicColor.secondaryText)
-            Button("Try again", action: retry).buttonStyle(.borderedProminent)
+        VStack(alignment: .leading, spacing: MosaicSpace.small) {
+            MosaicEyebrow(title: "In progress")
+            Text("Nothing in progress yet").font(MosaicType.section).foregroundStyle(MosaicColor.primaryText)
+            Text("Start a series, book, or game and it will appear here with your real progress.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
+            Button("Find something to start") { router.select(.discover) }.buttonStyle(.bordered).tint(MosaicColor.accent).padding(.top, MosaicSpace.xxSmall)
         }
         .padding(MosaicSpace.large)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous).strokeBorder(MosaicColor.border) }
         .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }

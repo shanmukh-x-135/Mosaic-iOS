@@ -103,4 +103,15 @@ final class SessionStore {
         print("[Mosaic] \(context) failed: \(type(of: error)): \(error.localizedDescription)")
         #endif
     }
+
+    #if DEBUG
+    /// A signed-in session for the DEBUG visual fixtures. It has no Supabase
+    /// client, so it can never authenticate a request.
+    static func fixture(user: CurrentUser) -> SessionStore {
+        let store = SessionStore(configuration: AppConfiguration(apiBaseURL: AppConfiguration.current.apiBaseURL, supabaseURL: nil, supabasePublishableKey: ""))
+        store.currentUser = user
+        store.state = .signedIn
+        return store
+    }
+    #endif
 }

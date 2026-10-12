@@ -1,6 +1,6 @@
 import Foundation
 
-enum MosaicAPIError: Error, Equatable, LocalizedError, Sendable {
+nonisolated enum MosaicAPIError: Error, Equatable, LocalizedError, Sendable {
     case unauthorized(String), forbidden(String), notFound(String), validation(String), conflict(String), rateLimited(String), providerUnavailable(String), internalError(String), network(String), timedOut(String), decoding(String), invalidResponse
     var errorDescription: String? {
         switch self { case let .unauthorized(m), let .forbidden(m), let .notFound(m), let .validation(m), let .conflict(m), let .rateLimited(m), let .providerUnavailable(m), let .internalError(m), let .network(m), let .timedOut(m), let .decoding(m): m; case .invalidResponse: "The server returned an invalid response." }
@@ -11,4 +11,4 @@ enum MosaicAPIError: Error, Equatable, LocalizedError, Sendable {
         }
     }
 }
-struct MosaicErrorEnvelope: Decodable, Sendable { struct Payload: Decodable, Sendable { let code: String; let message: String }; let error: Payload }
+nonisolated struct MosaicErrorEnvelope: Decodable, Sendable { struct Payload: Decodable, Sendable { let code: String; let message: String }; let error: Payload }

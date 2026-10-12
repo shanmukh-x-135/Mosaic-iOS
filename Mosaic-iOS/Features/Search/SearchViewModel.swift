@@ -4,7 +4,7 @@ import os
 
 private let searchLogger = Logger(subsystem: "com.shanmukhpgsspersonalteam.MosaiciOS", category: "Search")
 
-enum CatalogFilter: String, CaseIterable, Identifiable, Sendable {
+nonisolated enum CatalogFilter: String, CaseIterable, Identifiable, Sendable {
     case all, movies, series, games, books
 
     var id: String { rawValue }
@@ -16,7 +16,7 @@ enum CatalogFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum SearchViewState: Equatable {
+nonisolated enum SearchViewState: Equatable {
     case noQuery
     case minimumQuery
     case loading
@@ -25,7 +25,7 @@ enum SearchViewState: Equatable {
     case error(SearchErrorPresentation)
 }
 
-enum SearchErrorPresentation: Equatable {
+nonisolated enum SearchErrorPresentation: Equatable {
     case offline, timedOut, unavailable, unreadable, invalidQuery
 
     var title: String {
@@ -58,20 +58,6 @@ final class SearchViewModel {
     var query = "" { didSet { scheduleSearch() } }
     var filter: CatalogFilter = .all { didSet { scheduleSearch() } }
     private(set) var state: SearchViewState = .noQuery
-
-    init(client: MosaicAPIClient) {
-        search = { query, filter in
-            func request(type: String?) async throws -> CatalogSearchResponse {
-                var items = [URLQueryItem(name: "q", value: query)]
-                if let type { items.append(URLQueryItem(name: "type", value: type)) }
-                return try await client.publicRequest(path: "/api/catalog/search", queryItems: items, as: CatalogSearchResponse.self)
-            }
-            // The catalog endpoint already fans out to its providers for an unfiltered
-            // request. One bounded request avoids four competing connections on a
-            // physical device and preserves the server's partial-failure envelope.
-            return try await request(type: filter.catalogType)
-        }
-    }
 
     init(search: @escaping @Sendable (String, CatalogFilter) async throws -> CatalogSearchResponse) {
         self.search = search

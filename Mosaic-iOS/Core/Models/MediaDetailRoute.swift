@@ -3,7 +3,7 @@ import Foundation
 /// A provider-qualified catalog identity. This deliberately carries no title- or
 /// artwork-derived lookup data: catalog detail routes must always address the
 /// server with the stable identity it supplied.
-struct MediaDetailRoute: Hashable, Sendable {
+nonisolated struct MediaDetailRoute: Hashable, Sendable {
     let provider: String
     let mediaType: CatalogMediaType
     let providerID: String
@@ -19,7 +19,7 @@ struct MediaDetailRoute: Hashable, Sendable {
     }
 }
 
-enum CatalogMediaType: String, Hashable, Codable, Sendable {
+nonisolated enum CatalogMediaType: String, Hashable, Codable, Sendable {
     case movie
     case tv
     case game

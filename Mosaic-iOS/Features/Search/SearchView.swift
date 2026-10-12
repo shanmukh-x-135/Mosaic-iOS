@@ -1,117 +1,90 @@
 import SwiftUI
 
+/// The one catalog search surface, hosted by the system search tab. Results
+/// keep the server's provider order and its partial-failure notice.
 struct SearchView: View {
-    @State private var model: SearchViewModel
+    @Environment(\.mosaicServices) private var services
+    var body: some View { SearchScreen(services: services) }
+}
 
-    init() { _model = State(initialValue: SearchViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL))) }
+private struct SearchScreen: View {
+    @State private var model: SearchViewModel
+    @SceneStorage("mosaic.search.query") private var storedQuery = ""
+    @SceneStorage("mosaic.search.filter") private var storedFilter = CatalogFilter.all.rawValue
+
+    init(services: MosaicServices) { _model = State(initialValue: SearchViewModel(search: services.search)) }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    MosaicEyebrow(title: "Across every medium")
-                    Text("Search").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, MosaicSpace.large)
-                .padding(.top, MosaicSpace.medium)
-                filterBar
-                content
+        List {
+            Section {
+                MosaicChipRow(items: CatalogFilter.allCases, selection: $model.filter, title: \.title, tint: { $0.mediaType?.accent })
+                    .listRowInsets(EdgeInsets(top: MosaicSpace.xSmall, leading: 0, bottom: MosaicSpace.xSmall, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .accessibilityLabel("Media type")
             }
-            .background(MosaicColor.background)
-            .navigationTitle("Search")
-            .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, series, games, and books")
+            content
         }
-    }
-
-    private var filterBar: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: MosaicSpace.small) {
-                ForEach(CatalogFilter.allCases) { filter in
-                    Button { model.filter = filter } label: {
-                        MosaicFilterChip(title: filter.title, selected: model.filter == filter)
-                    }
-                        .accessibilityAddTraits(model.filter == filter ? .isSelected : [])
-                }
-            }
-            .padding(.horizontal, MosaicSpace.large).padding(.vertical, MosaicSpace.small)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.immediately)
+        .background(MosaicColor.background)
+        .navigationTitle("Search")
+        .searchable(text: $model.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Movies, series, games, and books")
+        .toolbar { QuickLogToolbarItem() }
+        .onAppear {
+            if model.query.isEmpty, !storedQuery.isEmpty { model.query = storedQuery }
+            if let filter = CatalogFilter(rawValue: storedFilter), filter != model.filter { model.filter = filter }
         }
-        .scrollIndicators(.hidden)
+        .onChange(of: model.query) { _, query in storedQuery = query }
+        .onChange(of: model.filter) { _, filter in storedFilter = filter.rawValue }
     }
 
     @ViewBuilder private var content: some View {
         switch model.state {
         case .noQuery:
-            ContentUnavailableView("Find something to love", systemImage: "magnifyingglass", description: Text("Search Mosaic’s movies, series, games, and books."))
-                .foregroundStyle(MosaicColor.secondaryText)
+            message(MosaicStateMessage(title: "Find something to love", message: "Search Mosaic’s movies, series, games, and books.", systemImage: "magnifyingglass"))
         case .minimumQuery:
-            ContentUnavailableView("Keep typing", systemImage: "text.magnifyingglass", description: Text("Enter at least 2 characters to search."))
-                .foregroundStyle(MosaicColor.secondaryText)
+            message(MosaicStateMessage(title: "Keep typing", message: "Enter at least 2 characters to search.", systemImage: "text.magnifyingglass"))
         case .loading:
-            SearchSkeleton()
-        case let .results(items, partialFailure):
-            SearchResults(items: items, partialFailure: partialFailure)
-        case let .empty(partialFailure):
-            ContentUnavailableView("No matches", systemImage: "sparkle.magnifyingglass", description: Text(partialFailure ?? "Try another title or a different media type."))
-                .foregroundStyle(MosaicColor.secondaryText)
-        case let .error(error):
-            VStack(spacing: MosaicSpace.medium) {
-                ContentUnavailableView(error.title, systemImage: "exclamationmark.triangle", description: Text(error.message))
-                Button("Try again", action: model.retry).buttonStyle(.borderedProminent)
+            ForEach(0..<6, id: \.self) { _ in
+                HStack(spacing: MosaicSpace.medium) {
+                    MosaicSkeleton(aspectRatio: MosaicArtworkRatio.poster).frame(width: 52)
+                    VStack(alignment: .leading, spacing: 8) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 14); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 10) }
+                }
+                .listRowBackground(Color.clear)
             }
-        }
-    }
-}
-
-struct SearchResults: View {
-    let items: [CatalogMedia]
-    let partialFailure: String?
-    var embedded = false
-    var body: some View {
-        Group {
-            if embedded { rows }
-            else { ScrollView { rows } }
-        }
-        .scrollIndicators(.hidden)
-    }
-
-    private var rows: some View {
-        LazyVStack(alignment: .leading, spacing: MosaicSpace.small) {
-                if let partialFailure { Text(partialFailure).font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large) }
-                Text("\(items.count) results").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicSpace.large).padding(.top, MosaicSpace.small)
-                ForEach(items) { item in
-                    NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(media: item)) } label: { SearchResultRow(item: item) }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, MosaicSpace.large)
-                    Divider().overlay(MosaicColor.border).padding(.leading, MosaicSpace.large + 74)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Searching catalog")
+        case let .results(items, partialFailure):
+            Section {
+                ForEach(items) { media in
+                    NavigationLink(value: MosaicRoute.media(media)) {
+                        MosaicMediaRow(summary: MosaicMediaSummary(media), lines: lines(for: media), showsMedium: model.filter == .all)
+                    }
+                    .listRowBackground(Color.clear)
+                    .saveForLaterContextMenu(media)
+                }
+            } header: {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let partialFailure { MosaicNotice(text: partialFailure) }
+                    Text("\(items.count) \(items.count == 1 ? "result" : "results")").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText)
                 }
             }
-            .padding(.vertical, MosaicSpace.small)
-    }
-}
-
-private struct SearchResultRow: View {
-    let item: CatalogMedia
-    var body: some View {
-        HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 58, height: 82).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
-            VStack(alignment: .leading, spacing: 5) {
-                Text(item.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
-                Text(item.resultMetadata).font(.subheadline).foregroundStyle(MosaicColor.secondaryText).lineLimit(2)
-            }
-            Spacer(minLength: 0)
+        case let .empty(partialFailure):
+            message(MosaicStateMessage(title: "No matches", message: partialFailure ?? "Try another title or a different media type.", systemImage: "sparkle.magnifyingglass"))
+        case let .error(error):
+            message(MosaicStateMessage(title: error.title, message: error.message, systemImage: "exclamationmark.triangle", actionTitle: "Try again", action: model.retry))
         }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.title), \(item.resultMetadata)")
-        .accessibilityHint("Opens details")
     }
-}
 
-struct SearchSkeleton: View {
-    var embedded = false
-    var body: some View {
-        Group { if embedded { rows } else { ScrollView { rows } } }.accessibilityLabel("Searching catalog")
+    private func lines(for media: CatalogMedia) -> [String] {
+        var lines = [media.resultMetadata].filter { !$0.isEmpty }
+        if let rating = media.community { lines.append("★ \(rating.formattedValue) \(rating.source.shortLabel)") }
+        return lines
     }
-    private var rows: some View { VStack(spacing: MosaicSpace.medium) { ForEach(0..<6, id: \.self) { _ in HStack(spacing: MosaicSpace.medium) { MosaicSkeleton(aspectRatio: 0.7).frame(width: 58, height: 82); VStack(alignment: .leading, spacing: 10) { Capsule().fill(MosaicColor.surface).frame(width: 170, height: 16); Capsule().fill(MosaicColor.surface).frame(width: 110, height: 12) }; Spacer() }.padding(.horizontal, MosaicLayout.pageHorizontal) } }.padding(.top, MosaicSpace.medium) }
+
+    private func message(_ view: MosaicStateMessage) -> some View {
+        view.padding(.top, MosaicSpace.xLarge).listRowBackground(Color.clear).listRowSeparator(.hidden).listRowInsets(EdgeInsets())
+    }
 }

@@ -1,201 +1,251 @@
 import Observation
 import SwiftUI
 
+/// Identity first, then honest statistics, recent history, favourites and the
+/// user's lists. Every number is a server projection; nothing is inferred.
 struct ProfileView: View {
-    @Bindable var session: SessionStore
-    @State private var model: ProfileViewModel
-
-    init(session: SessionStore) {
-        self.session = session
-        _model = State(initialValue: ProfileViewModel(client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL), accessToken: { try await session.currentAccessToken() }))
-    }
+    @Environment(SessionStore.self) private var session
+    @Environment(\.mosaicServices) private var services
+    @Environment(LibraryStore.self) private var library
+    @State private var stats = Loadable<ProfileStatsDTO>.idle
+    @State private var activity = Loadable<[ProfileActivity]>.idle
+    @State private var lists = Loadable<[UserList]>.idle
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        NavigationStack {
-            MosaicScreen {
-                ProfileIdentity(profile: session.currentUser?.profile)
-                    .padding(.horizontal, MosaicLayout.pageHorizontal)
-                if let error = session.backendError { Text(error).font(.footnote).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicLayout.pageHorizontal) }
-                switch model.state {
-                case .idle, .loading: ProfileSkeleton()
-                case let .loaded(snapshot): ProfileOverview(snapshot: snapshot)
-                case .empty: ProfileEmpty()
-                case let .error(error): ProfileError(error: error, retry: model.retry)
-                }
-                Button("Sign Out", role: .destructive) { Task { await session.signOut() } }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, MosaicLayout.pageHorizontal)
+        MosaicScreen {
+            ProfileIdentity(profile: session.currentUser?.profile)
+            if let error = session.backendError { MosaicNotice(text: error, tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal) }
+            statsSection
+            recentSection
+            favouritesSection
+            listsSection
+            VStack(spacing: 0) {
+                ProfileLink(title: "Activity", subtitle: "Your full diary of logs and updates", systemImage: "clock.arrow.circlepath", route: .activity)
+                Divider().overlay(MosaicColor.border).padding(.leading, 56)
+                ProfileLink(title: "Lists", subtitle: lists.value.map { "\($0.count) \($0.count == 1 ? "list" : "lists")" } ?? "Your collections", systemImage: "list.bullet.rectangle", route: .lists)
+                Divider().overlay(MosaicColor.border).padding(.leading, 56)
+                ProfileLink(title: "Settings", subtitle: "Account and sign out", systemImage: "gearshape", route: .settings)
             }
-            .background(MosaicColor.background)
-            .navigationBarTitleDisplayMode(.inline)
-            .task { model.load() }
-            .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in model.retry() }
-            .refreshable { model.retry() }
+            .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous).strokeBorder(MosaicColor.border) }
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
         }
-    }
-}
-
-@MainActor @Observable
-final class ProfileViewModel {
-    enum State { case idle, loading, loaded(ProfileSnapshot), empty, error(MosaicAPIError) }
-    private let client: MosaicAPIClient
-    private let accessToken: @MainActor () async throws -> String
-    private var task: Task<Void, Never>?
-    private(set) var state: State = .idle
-
-    init(client: MosaicAPIClient, accessToken: @escaping @MainActor () async throws -> String) {
-        self.client = client; self.accessToken = accessToken
+        .navigationTitle("Profile")
+        .toolbar { QuickLogToolbarItem() }
+        .task { await load() }
+        .refreshable { await load(force: true) }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await load(force: true) } }
     }
 
-    func load() {
-        guard task == nil else { return }
-        state = .loading
-        task = Task { [weak self] in
-            guard let self else { return }
-            defer { self.task = nil }
-            do {
-                let token = try await self.accessToken()
-                async let stats: ProfileStatsDTO = self.client.request("/api/me/stats", token: token)
-                async let library: LibraryResponseDTO = self.client.request("/api/me/library", token: token)
-                async let activity: ProfileActivityResponse = self.client.request("/api/me/activity?limit=6", token: token)
-                let snapshot = try await ProfileSnapshot(stats: stats, library: library.items, activity: activity.items)
-                self.state = snapshot.library.isEmpty && snapshot.activity.isEmpty ? .empty : .loaded(snapshot)
-            } catch is CancellationError { self.state = .idle
-            } catch let error as MosaicAPIError { self.state = .error(error)
-            } catch { self.state = .error(.network("Unable to load your profile.")) }
+    // MARK: Sections
+
+    @ViewBuilder private var statsSection: some View {
+        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+            MosaicSectionHeader("Your story so far", eyebrow: "All time")
+            switch stats {
+            case .idle, .loading:
+                statGrid { ForEach(0..<4, id: \.self) { _ in MosaicSkeleton(aspectRatio: 2).accessibilityHidden(true) } }
+            case let .failed(error):
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    MosaicNotice(text: "\(MosaicErrorCopy.title(for: error, subject: "your statistics")). \(MosaicErrorCopy.message(for: error))", tone: .failure)
+                    Button("Try again") { Task { await loadStats() } }.font(.subheadline.weight(.semibold))
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
+            case let .loaded(stats):
+                statGrid {
+                    // Labels name exactly what each server count measures.
+                    ProfileStat(value: stats.movie.watches.formatted(), label: "Movie watches", detail: stats.movie.rewatches > 0 ? "\(Plural.count(stats.movie.uniqueMovies, "film")) · \(Plural.count(stats.movie.rewatches, "rewatch", "rewatches"))" : nil, mediaType: .movie)
+                    ProfileStat(value: stats.tv.uniqueEpisodesWatched.formatted(), label: "Episodes watched", detail: stats.tv.completedSeasons > 0 ? "\(Plural.count(stats.tv.completedSeasons, "season")) completed" : nil, mediaType: .tv)
+                    ProfileStat(value: stats.game.completedPlaythroughs.formatted(), label: "Playthroughs completed", detail: stats.game.playtimeMinutes > 0 ? "\(MosaicDuration.playtime(stats.game.playtimeMinutes)) recorded" : nil, mediaType: .game)
+                    ProfileStat(value: stats.book.finished.formatted(), label: "Books finished", detail: nil, mediaType: .book)
+                }
+            }
         }
     }
-    func retry() { load() }
-}
 
-struct ProfileSnapshot {
-    let stats: ProfileStatsDTO
-    let library: [LibraryItemDTO]
-    let activity: [ProfileActivity]
-}
+    private func statGrid<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 320 : 150), spacing: MosaicSpace.small)], spacing: MosaicSpace.small) { content() }
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
+    }
 
-struct ProfileStatsDTO: Decodable {
-    struct MediaMix: Decodable { let movie, tv, game, book: Int }
-    struct Movie: Decodable { let watches, rewatches, uniqueMovies: Int }
-    struct TV: Decodable { let uniqueEpisodesWatched, episodeWatchLogs, episodeRewatches, completedSeasons, showsInProgress: Int }
-    struct Game: Decodable { let completedPlaythroughs, playtimeMinutes: Int }
-    struct Book: Decodable { let finished, pagesRead: Int }
-    let mediaMix: MediaMix
-    let movie: Movie
-    let tv: TV
-    let game: Game
-    let book: Book
-}
-
-struct ProfileActivityResponse: Decodable { let items: [ProfileActivity] }
-struct ProfileActivity: Decodable, Identifiable {
-    let eventID: String
-    let media: CatalogMedia
-    let occurredAt: Date
-    let eventType: String
-    let rating: Double?
-    let detail: String?
-    private enum CodingKeys: String, CodingKey { case eventID = "eventId", media, occurredAt, eventType, rating, detail }
-    var id: String { eventID }
-    var label: String {
-        switch eventType {
-        case "movie_watch": "Watched"
-        case "episode_watch": "Watched an episode"
-        case "tv_watch": "Updated series"
-        case "game_update": "Updated playthrough"
-        default: "Updated reading"
+    @ViewBuilder private var recentSection: some View {
+        switch activity {
+        case let .loaded(items) where !items.isEmpty:
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Recently logged", eyebrow: "Personal history") { NavigationLink("See all", value: MosaicRoute.activity) }
+                VStack(spacing: MosaicSpace.small) {
+                    ForEach(items.prefix(5)) { event in
+                        NavigationLink(value: MosaicRoute.media(event.media)) { ActivityEventRow(event: event) }.buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+        case .loaded:
+            MosaicStateMessage(title: "Start your personal history", message: "Log a movie, episode, game session, or reading update and it will appear here.", systemImage: "person.text.rectangle")
+        case .failed:
+            MosaicNotice(text: "Recent activity couldn’t be loaded. Pull to refresh.", tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal)
+        case .idle, .loading:
+            EmptyView()
         }
+    }
+
+    @ViewBuilder private var favouritesSection: some View {
+        let favourites = library.items.filter(\.isFavorite)
+        if !favourites.isEmpty {
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Favourite stories", eyebrow: "Taste profile")
+                MosaicRail {
+                    ForEach(favourites.prefix(12)) { item in
+                        NavigationLink(value: MosaicRoute.media(item)) { MosaicPosterCard(summary: MosaicMediaSummary(item), width: 104, showsMedium: true) }.buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var listsSection: some View {
+        if let lists = lists.value, !lists.isEmpty {
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                MosaicSectionHeader("Your lists", eyebrow: "Collections") { NavigationLink("See all", value: MosaicRoute.lists) }
+                MosaicRail {
+                    ForEach(lists.prefix(8)) { list in
+                        NavigationLink(value: MosaicRoute.list(list)) { ListCoverCard(list: list) }.buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Loading
+
+    private func load(force: Bool = false) async {
+        async let s: Void = loadStats(force: force)
+        async let a: Void = loadActivity(force: force)
+        async let l: Void = loadLists(force: force)
+        _ = await (s, a, l)
+    }
+    private func loadStats(force: Bool = true) async {
+        guard force || stats.value == nil else { return }
+        if stats.value == nil { stats = .loading }
+        do { stats = .loaded(try await services.stats()) } catch is CancellationError {} catch { if stats.value == nil { stats = .failed(error) } }
+    }
+    private func loadActivity(force: Bool) async {
+        guard force || activity.value == nil else { return }
+        if activity.value == nil { activity = .loading }
+        do { activity = .loaded(try await services.activity(6)) } catch is CancellationError {} catch { if activity.value == nil { activity = .failed(error) } }
+    }
+    private func loadLists(force: Bool) async {
+        guard force || lists.value == nil else { return }
+        do { lists = .loaded(try await services.lists()) } catch is CancellationError {} catch { if lists.value == nil { lists = .failed(error) } }
     }
 }
 
 private struct ProfileIdentity: View {
     let profile: Profile?
     var body: some View {
-        HStack(alignment: .top, spacing: MosaicSpace.medium) {
-            Group {
-                if let url = profile?.avatarURL { AsyncImage(url: url) { phase in if case let .success(image) = phase { image.resizable().scaledToFill() } else { placeholder } } }
-                else { placeholder }
-            }
-            .frame(width: 76, height: 76).clipShape(Circle())
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(alignment: .center, spacing: MosaicSpace.medium) {
+            ProfileAvatar(url: profile?.avatarURL).frame(width: 72, height: 72)
+            VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
                 MosaicEyebrow(title: "Your Mosaic")
-                Text(profile?.displayName ?? profile?.username ?? "Your profile").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText)
-                if let username = profile?.username, !username.hasPrefix("user_") { Text("@\(username)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
-                Text("One identity for everything you watch, play, and read.").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
+                Text(profile?.displayName ?? visibleUsername ?? "Your profile").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).lineLimit(2).accessibilityAddTraits(.isHeader)
+                // Generated `user_…` handles are placeholders, not identities.
+                if let visibleUsername { Text("@\(visibleUsername)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
             }
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
-    private var placeholder: some View { LinearGradient(colors: [MosaicColor.accent, MosaicColor.surface], startPoint: .topLeading, endPoint: .bottomTrailing).overlay(Image(systemName: "person.fill").foregroundStyle(.white)) }
+    private var visibleUsername: String? { profile?.username.flatMap { $0.hasPrefix("user_") ? nil : $0 } }
 }
 
-private struct ProfileOverview: View {
-    let snapshot: ProfileSnapshot
-    private var favorites: [LibraryItemDTO] { snapshot.library.filter(\.isFavorite) }
+/// Remote avatars, or the web's bundled SVG presets, with a gradient fallback.
+/// Preset paths are relative to the web app, so they resolve against the API base.
+private struct ProfileAvatar: View {
+    let url: URL?
     var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.xLarge) {
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                MosaicSectionHeader("Your story so far", eyebrow: "All time")
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: MosaicSpace.small) {
-                    ProfileStat(value: snapshot.stats.movie.watches, label: "Movies watched")
-                    ProfileStat(value: snapshot.stats.tv.uniqueEpisodesWatched, label: "Episodes watched")
-                    ProfileStat(value: snapshot.stats.game.completedPlaythroughs, label: "Games completed")
-                    ProfileStat(value: snapshot.stats.book.finished, label: "Books read")
+        Group {
+            if let resolved {
+                AsyncImage(url: resolved) { phase in
+                    if case let .success(image) = phase { image.resizable().scaledToFill() } else { placeholder }
                 }
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
-            }
-            if !snapshot.activity.isEmpty {
-                VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                    MosaicSectionHeader("Recently logged", eyebrow: "Personal history")
-                    ForEach(snapshot.activity) { event in
-                        NavigationLink { MediaDetailContainer(route: event.media.route, preview: MediaDetailPreview(media: event.media)) } label: { ProfileActivityRow(event: event) }.buttonStyle(.plain).padding(.horizontal, MosaicLayout.pageHorizontal)
-                    }
-                }
-            }
-            if !favorites.isEmpty {
-                VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                    MosaicSectionHeader("Favourite stories", eyebrow: "Taste profile")
-                    ScrollView(.horizontal) {
-                        LazyHStack(spacing: MosaicSpace.medium) {
-                            ForEach(favorites.prefix(10)) { item in
-                                NavigationLink { MediaDetailContainer(route: item.route, preview: MediaDetailPreview(library: item)) } label: {
-                                    VStack(alignment: .leading, spacing: 6) { MosaicArtwork(url: item.posterURL, fallbackURL: item.backdropURL, symbol: item.mediaType.symbolName).frame(width: 112, height: 164).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)); Text(item.title).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(2).frame(width: 112, alignment: .leading) }
-                                }.buttonStyle(.plain)
-                            }
-                        }.padding(.horizontal, MosaicLayout.pageHorizontal)
-                    }.scrollIndicators(.hidden)
-                }
-            }
+            } else { placeholder }
         }
+        .clipShape(Circle())
+        .overlay { Circle().strokeBorder(MosaicColor.highlight) }
+        .accessibilityHidden(true)
+    }
+    private var resolved: URL? {
+        guard let url else { return nil }
+        if url.scheme == nil { return URL(string: url.relativeString, relativeTo: AppConfiguration.current.apiBaseURL)?.absoluteURL }
+        return url.pathExtension.lowercased() == "svg" ? nil : url
+    }
+    private var placeholder: some View {
+        LinearGradient(colors: [MosaicColor.accent, CatalogMediaType.tv.accent], startPoint: .topLeading, endPoint: .bottomTrailing)
+            .overlay(Image(systemName: "person.fill").font(.title2).foregroundStyle(.white.opacity(0.9)))
     }
 }
 
 private struct ProfileStat: View {
-    let value: Int; let label: String
-    var body: some View { VStack(alignment: .leading, spacing: 5) { Text(value.formatted()).font(.title2.weight(.bold)).foregroundStyle(MosaicColor.primaryText); Text(label).font(.caption).foregroundStyle(MosaicColor.secondaryText) }.frame(maxWidth: .infinity, minHeight: 76, alignment: .leading).padding(MosaicSpace.medium).background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous)) }
-}
-
-private struct ProfileActivityRow: View {
-    let event: ProfileActivity
-    private var summary: String {
-        let rating = event.rating.map { "★ \($0.formatted(.number.precision(.fractionLength(1))))" }
-        return [event.label, rating, event.detail].compactMap { $0 }.joined(separator: " · ")
-    }
-    private var dateLabel: String { event.occurredAt.formatted(.dateTime.month(.abbreviated).day()) }
+    let value: String
+    let label: String
+    let detail: String?
+    let mediaType: CatalogMediaType
     var body: some View {
-        HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: event.media.posterURL, fallbackURL: event.media.backdropURL, symbol: event.media.mediaType.symbolName)
-                .frame(width: 52, height: 70).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(event.media.mediaType.displayName.uppercased()).font(.caption2.weight(.bold)).foregroundStyle(MosaicColor.accent)
-                Text(event.media.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(1)
-                Text(summary).font(.caption).foregroundStyle(MosaicColor.secondaryText)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            Text(dateLabel).font(.caption2).foregroundStyle(MosaicColor.mutedText)
+        VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
+            Text(value).font(.title2.weight(.bold)).foregroundStyle(MosaicColor.primaryText).monospacedDigit()
+            HStack(spacing: 5) {
+                Circle().fill(mediaType.accent).frame(width: 6, height: 6)
+                Text(label).font(.caption.weight(.semibold)).foregroundStyle(MosaicColor.secondaryText)
+            }
+            if let detail { Text(detail).font(.caption2).foregroundStyle(MosaicColor.mutedText).lineLimit(2) }
         }
+        .frame(maxWidth: .infinity, minHeight: 84, alignment: .topLeading)
+        .padding(MosaicSpace.medium)
+        .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous).strokeBorder(MosaicColor.border) }
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct ProfileSkeleton: View { var body: some View { VStack(alignment: .leading, spacing: MosaicSpace.medium) { MosaicSectionHeader("Your story so far", eyebrow: "All time"); LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: MosaicSpace.small) { ForEach(0..<4, id: \.self) { _ in MosaicSkeleton().frame(height: 88) } }.padding(.horizontal, MosaicLayout.pageHorizontal); MosaicSkeleton().frame(height: 170).padding(.horizontal, MosaicLayout.pageHorizontal) }.redacted(reason: .placeholder) } }
-private struct ProfileEmpty: View { var body: some View { ContentUnavailableView("Start your personal history", systemImage: "person.text.rectangle", description: Text("Log a movie, episode, game session, or reading update to see your story here.")).padding(.horizontal, MosaicLayout.pageHorizontal) } }
-private struct ProfileError: View { let error: MosaicAPIError; let retry: () -> Void; var body: some View { VStack(spacing: MosaicSpace.medium) { ContentUnavailableView("Your profile is unavailable", systemImage: "exclamationmark.triangle", description: Text(error.localizedDescription)); Button("Try again", action: retry).buttonStyle(.borderedProminent) }.padding(.horizontal, MosaicLayout.pageHorizontal) } }
+private struct ProfileLink: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let route: MosaicRoute
+    var body: some View {
+        NavigationLink(value: route) {
+            HStack(spacing: MosaicSpace.medium) {
+                Image(systemName: systemImage).font(.body.weight(.semibold)).foregroundStyle(MosaicColor.accent).frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.body.weight(.semibold)).foregroundStyle(MosaicColor.primaryText)
+                    Text(subtitle).font(.caption).foregroundStyle(MosaicColor.secondaryText)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.mutedText).accessibilityHidden(true)
+            }
+            .padding(.horizontal, MosaicSpace.medium)
+            .frame(minHeight: 60)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// One diary event, labelled with the web's `activityLabel` rules.
+struct ActivityEventRow: View {
+    let event: ProfileActivity
+    var showsDate = true
+    var body: some View {
+        MosaicMediaRow(summary: MosaicMediaSummary(title: event.media.title, mediaType: event.media.mediaType, posterURL: event.media.posterURL, backdropURL: event.media.backdropURL, subtitle: nil), lines: [summary], thumbnailWidth: 44) {
+            if showsDate {
+                Text(event.occurredAt.formatted(.dateTime.month(.abbreviated).day())).font(.caption2).foregroundStyle(MosaicColor.mutedText)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens details")
+    }
+    private var summary: String {
+        [event.label, event.rating.map { "\(UserRating.format($0)) ★" }, event.detail].compactMap { $0 }.joined(separator: " · ")
+    }
+}

@@ -8,31 +8,32 @@ struct RootView: View {
             .environment(session)
             .preferredColorScheme(.dark)
             .tint(MosaicColor.accent)
+            .background(MosaicColor.background.ignoresSafeArea())
     }
 
     @ViewBuilder
     private var rootContent: some View {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-mosaic-visual-fixtures") {
-            MosaicVisualFixtureGallery()
+        if let fixture = MosaicVisualFixtures.launchConfiguration {
+            MosaicFixtureRoot(configuration: fixture)
         } else {
-            signedInContent
+            sessionContent
         }
         #else
-        signedInContent
+        sessionContent
         #endif
     }
 
     @ViewBuilder
-    private var signedInContent: some View {
-        Group {
-            switch session.state {
-            case .launching: LaunchView()
-            case .signedOut, .error: AuthView(session: session)
-            case .signedIn: AppShell(session: session)
-            }
+    private var sessionContent: some View {
+        switch session.state {
+        case .launching: LaunchView()
+        case .signedOut, .error: AuthView(session: session)
+        case .signedIn: AppShell(services: liveServices)
         }
     }
+
+    private var liveServices: MosaicServices { .live(session: session) }
 }
 
 private struct LaunchView: View {

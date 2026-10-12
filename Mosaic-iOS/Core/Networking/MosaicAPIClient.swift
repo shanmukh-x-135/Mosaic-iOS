@@ -40,9 +40,11 @@ struct MosaicAPIClient: Sendable {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else { throw decodeError(data: data, statusCode: http.statusCode) }
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
+            guard (200..<300).contains(http.statusCode) else { throw decodeError(data: data, statusCode: http.statusCode) }
+        } catch let error as MosaicAPIError { throw error } catch is CancellationError { throw CancellationError() } catch { throw MosaicAPIError.network("Unable to connect to Mosaic. Please try again.") }
     }
     private func perform<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {
         let clock = ContinuousClock(); let start = clock.now
@@ -75,7 +77,7 @@ struct MosaicAPIClient: Sendable {
         return .from(code: nil, message: "Mosaic could not complete that request.", statusCode: statusCode)
     }
 }
-extension JSONDecoder {
+nonisolated extension JSONDecoder {
     static let mosaic: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase

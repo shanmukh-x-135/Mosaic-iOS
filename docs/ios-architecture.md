@@ -2,7 +2,9 @@
 
 ## Structure
 
-`Mosaic-iOS/App` owns the root session flow and tab shell. `Core` contains the small shared boundaries: configuration, Supabase authentication, Mosaic networking, API models, and semantic visual tokens. `Features/Auth` contains the only feature UI in Milestone 0. The remaining tabs are deliberately non-data placeholders.
+`Mosaic-iOS/App` owns the root session flow, the tab shell (`AppShell`), navigation state (`MosaicRouter`), the shared `LibraryStore`, and the DEBUG visual fixtures. `Core` contains configuration, Supabase authentication, networking (`MosaicAPIClient` plus the injectable `MosaicServices`), API models, cross-platform product rules (`MosaicProductRules.swift`), and the design system. `Features` holds Home, Discover, Library, MediaDetail, QuickLog, Search, Lists, and Profile (with Activity and Settings). See `docs/IOS_ALIGNMENT_AUDIT.md` for the Phase 2 alignment with the web app.
+
+Visual fixtures: launch a DEBUG build with `-mosaic-visual-fixtures -mosaic-visual-screen <home|discover|library|profile|search|detail-movie|detail-game|detail-book|series|season|lists|list|activity|settings|quicklog>`, optionally `-mosaic-visual-state empty|error` and `-mosaic-visual-accessibility`. These render the shipped screens with canned data; personal data never touches the network and mutations are only recorded in memory.
 
 ## Configuration
 
@@ -45,4 +47,4 @@ xcodebuild -project Mosaic-iOS.xcodeproj -scheme Mosaic-iOS \
   -destination 'generic/platform=iOS Simulator' build
 ```
 
-Focused unit tests in `Mosaic-iOSTests` cover configuration, URL construction, Bearer injection, normalized error decoding, session-state values, and `/api/me` decoding.
+Unit tests: `xcodebuild test -project Mosaic-iOS.xcodeproj -scheme Mosaic-iOS -destination 'platform=iOS Simulator,name=iPhone 16'`. `MosaicFoundationTests` covers the foundation (configuration, requests, errors, decoding, search, Home); `MosaicAlignmentTests` covers the product rules shared with the web and the Phase 2 regression fixes.

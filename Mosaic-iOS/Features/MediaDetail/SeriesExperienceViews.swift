@@ -1,67 +1,35 @@
-import SwiftUI
 import Observation
 import os
+import SwiftUI
 
 private let seriesLogger = Logger(subsystem: "com.shanmukhpgsspersonalteam.MosaiciOS", category: "Series")
 
 struct SeriesHubView: View {
     let media: CatalogMedia
-    @Environment(SessionStore.self) private var session
-    @State private var state: SeriesPersonalStateViewModel
-    @State private var showsFullAbout = false
-
-    init(media: CatalogMedia) {
-        self.media = media
-        _state = State(initialValue: SeriesPersonalStateViewModel(media: media, client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
-    }
+    @Environment(\.mosaicServices) private var services
+    @State private var state = SeriesPersonalStateViewModel()
 
     private var seasons: [Int] {
-        let declared = media.seasonNumbers ?? Array(1...(media.seasonCount ?? 0))
-        return declared.filter { $0 > 0 }.sorted()
+        let declared = media.seasonNumbers ?? Array(1...max(media.seasonCount ?? 0, 1))
+        return media.seasonNumbers == nil && media.seasonCount == nil ? [] : declared.filter { $0 > 0 }.sorted()
     }
 
     var body: some View {
         MosaicScreen {
-            SeriesHeroArtwork(media: media)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
-
-            VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                MosaicEyebrow(title: "Series")
-                Text(media.title)
-                    .font(.system(.largeTitle, design: .serif, weight: .semibold))
-                    .foregroundStyle(MosaicColor.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                SeriesIdentity(media: media)
+            DetailHero(media: media)
+            DetailIdentity(media: media)
+            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
+                SeriesEpisodeProgress(media: media, state: state)
+                PersonalStoryPanel(media: media, showsLogAction: false)
             }
             .padding(.horizontal, MosaicLayout.pageHorizontal)
-
-            SeriesPersonalStory(media: media, state: state)
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
-
-            if let description = media.description, !description.isEmpty {
-                VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                    MosaicSectionHeader("About")
-                    Text(aboutText(description)).foregroundStyle(MosaicColor.secondaryText).fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, MosaicLayout.pageHorizontal)
-                    if description.count > 420 {
-                        Button(showsFullAbout ? "Show less" : "More") { showsFullAbout.toggle() }
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(MosaicColor.accent)
-                            .padding(.horizontal, MosaicLayout.pageHorizontal)
-                    }
-                }
-            }
-
-            SeriesKeyDetails(media: media)
-
+            if let description = media.description, !description.isEmpty { DetailAbout(text: description) }
             if !seasons.isEmpty {
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
                     MosaicSectionHeader("Seasons", eyebrow: "Episode guide")
                     ForEach(seasons, id: \.self) { number in
                         NavigationLink {
-                            SeasonExperienceView(series: media, seasonNumber: number, personalState: state.value)
+                            SeasonExperienceView(series: media, seasonNumber: number)
                         } label: {
                             SeasonRow(media: media, seasonNumber: number, personalState: state.value)
                         }
@@ -70,165 +38,55 @@ struct SeriesHubView: View {
                     }
                 }
             }
+            DetailFacts(facts: [
+                DetailFact("Network", media.network),
+                DetailFact("Seasons", media.seasonCount.map(String.init)),
+                DetailFact("Episodes", (media.eligibleEpisodeCount ?? media.episodeCount).map(String.init)),
+                DetailFact("First aired", media.releaseDate ?? media.releaseYear.map(String.init)),
+            ])
         }
-        .task { await state.load(using: session) }
-    }
-
-    private func aboutText(_ description: String) -> String {
-        guard !showsFullAbout, description.count > 420 else { return description }
-        return String(description.prefix(420)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+        .task { await state.load(media.route, services: services) }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await state.refresh(media.route, services: services) } }
     }
 }
 
-private struct SeriesHeroArtwork: View {
-    let media: CatalogMedia
-    var body: some View {
-        Group {
-            if let backdrop = media.backdropURL {
-                MosaicArtwork(url: backdrop, fallbackURL: media.posterURL, symbol: "tv")
-            } else if let poster = media.posterURL {
-                ZStack {
-                    LinearGradient(colors: [MosaicColor.surface, MosaicColor.elevated], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    MosaicArtwork(url: poster, symbol: "tv")
-                        .frame(width: 116)
-                        .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
-                        .padding(MosaicSpace.medium)
-                }
-            } else {
-                MosaicArtwork(url: nil, symbol: "tv")
-            }
-        }
-    }
-}
-
-private struct SeriesIdentity: View {
-    let media: CatalogMedia
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: MosaicSpace.small) {
-                if let year = media.releaseYear { Text(String(year)) }
-                if let rating = media.communityRating { MosaicRating(value: rating) }
-                if let network = media.network { Text(network).lineLimit(1) }
-            }
-            .font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-            if !media.genres.isEmpty { Text(media.genres.joined(separator: " · ")).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
-        }
-    }
-}
-
-private struct SeriesKeyDetails: View {
-    let media: CatalogMedia
-
-    private var entries: [(String, String)] {
-        [
-            media.network.map { ("Network", $0) },
-            media.seasonCount.map { ("Seasons", "\($0)") },
-            media.eligibleEpisodeCount.map { ("Episodes", "\($0)") } ?? media.episodeCount.map { ("Episodes", "\($0)") },
-            media.releaseYear.map { ("First aired", "\($0)") }
-        ].compactMap { $0 }
-    }
-
-    var body: some View {
-        guard !entries.isEmpty else { return AnyView(EmptyView()) }
-        return AnyView(VStack(alignment: .leading, spacing: MosaicSpace.small) {
-            MosaicSectionHeader("Details")
-            VStack(spacing: 0) {
-                ForEach(entries, id: \.0) { label, value in
-                    HStack { Text(label).foregroundStyle(MosaicColor.secondaryText); Spacer(); Text(value).foregroundStyle(MosaicColor.primaryText).multilineTextAlignment(.trailing) }
-                        .font(.subheadline)
-                        .padding(.vertical, MosaicSpace.small)
-                    if label != entries.last?.0 { Divider().overlay(MosaicColor.border) }
-                }
-            }
-            .padding(.horizontal, MosaicLayout.pageHorizontal)
-        })
-    }
-}
-
-private struct SeriesPersonalStory: View {
+/// Episode progress and the next-episode action. Totals are the catalog's
+/// aired, non-special count; without one, progress is shown as a plain count.
+private struct SeriesEpisodeProgress: View {
     let media: CatalogMedia
     let state: SeriesPersonalStateViewModel
-    @Environment(SessionStore.self) private var session
-    @State private var isSaving = false
-    @State private var notice: String?
-    @State private var presentsLogSheet = false
+    @Environment(\.mosaicServices) private var services
+    @State private var presentsLog = false
+    @State private var notice: (String, MosaicNotice.Tone)?
 
     private var watchedCount: Int { state.value?.watchedCoordinates.count ?? 0 }
     private var total: Int? { media.eligibleEpisodeCount ?? media.episodeCount }
-    private var next: (Int, Int)? {
-        guard let total, watchedCount < total else { return nil }
-        let counts = media.eligibleEpisodeCounts ?? media.seasonEpisodeCounts ?? [:]
-        for season in (media.seasonNumbers ?? []).filter({ $0 > 0 }).sorted() {
-            for episode in 1...(counts[String(season)] ?? 0) where !(state.value?.watchedCoordinates.contains("\(season):\(episode)") ?? false) { return (season, episode) }
-        }
-        return nil
-    }
+    private var next: (season: Int, episode: Int)? { SeriesProgress.nextEpisode(media: media, watched: state.value?.watchedCoordinates ?? []) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-            MosaicEyebrow(title: "Your story")
-            HStack(alignment: .firstTextBaseline) {
-                Text(state.value?.status?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Not in your Library")
-                    .font(MosaicType.title).foregroundStyle(MosaicColor.primaryText)
-                Spacer(minLength: MosaicSpace.small)
-                if state.value?.isFavorite == true { Image(systemName: "heart.fill").foregroundStyle(MosaicColor.accent).accessibilityLabel("Favourite") }
-            }
-            if let total {
-                Text("\(watchedCount) of \(total) episodes").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-                ProgressView(value: Double(watchedCount), total: Double(total)).tint(MosaicColor.accent)
-            } else if watchedCount > 0 {
-                Text("\(watchedCount) episodes watched").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-            }
-            if let next { Text("Next · S\(String(format: "%02d", next.0))E\(String(format: "%02d", next.1))").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.accent) }
-            HStack(spacing: MosaicSpace.small) {
-                if let next {
-                    Button("Log next episode") { presentsLogSheet = true }.buttonStyle(.glassProminent).disabled(isSaving)
+        VStack(alignment: .leading, spacing: MosaicSpace.small) {
+            if state.value == nil && state.isLoading {
+                ProgressView().controlSize(.small)
+            } else {
+                if let total, total > 0 {
+                    Text("\(watchedCount) of \(total) episodes watched").font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText)
+                    MosaicProgressBar(fraction: Double(watchedCount) / Double(total), tint: CatalogMediaType.tv.accent)
+                } else if watchedCount > 0 {
+                    Text("\(watchedCount) episodes watched").font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText)
                 }
-                Menu {
-                    ForEach(["watchlist", "watching", "paused", "completed", "dropped"], id: \.self) { status in
-                        Button(status.replacingOccurrences(of: "_", with: " ").capitalized) { save(.library(media, status: status, isFavorite: state.value?.isFavorite)) }
-                    }
-                } label: { Label("Status", systemImage: "ellipsis.circle") }
-                .buttonStyle(.glass).disabled(isSaving)
-                Menu {
-                    Button("Clear rating") { save(.rating(media, nil)) }
-                    Divider()
-                    ForEach([1.0, 2.0, 3.0, 4.0, 5.0], id: \.self) { rating in
-                        Button("\(Int(rating)) stars") { save(.rating(media, rating)) }
-                    }
-                } label: { Label(state.value?.userRating == nil ? "Rate" : "Rated \(state.value?.userRating ?? 0, specifier: "%.1f")", systemImage: "star") }
-                .buttonStyle(.glass).disabled(isSaving)
-                Button {
-                    save(.library(media, status: state.value?.status ?? "watchlist", isFavorite: !(state.value?.isFavorite ?? false)))
-                } label: {
-                    Image(systemName: state.value?.isFavorite == true ? "heart.fill" : "heart")
+                Button { presentsLog = true } label: {
+                    Label(next.map { "Log \(EpisodeCode.format(season: $0.season, episode: $0.episode))" } ?? "Log an episode", systemImage: "plus.circle.fill").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glass)
-                .accessibilityLabel(state.value?.isFavorite == true ? "Remove favourite" : "Add favourite")
-                .disabled(isSaving)
+                .buttonStyle(.borderedProminent)
+                .tint(CatalogMediaType.tv.accent)
+                .foregroundStyle(MosaicColor.onLight)
+                .controlSize(.large)
+                .accessibilityHint(next == nil ? "Choose a season and episode" : "Opens the log form for the next unwatched episode")
             }
-            if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+            if let notice { MosaicNotice(text: notice.0, tone: notice.1) }
         }
-        .task { await state.load(using: session) }
-        .sheet(isPresented: $presentsLogSheet) {
-            if let next {
-                EpisodeLogSheet { date, rating in log(next, watchedAt: date, rating: rating) }
-            }
-        }
-    }
-
-    private func log(_ coordinate: (Int, Int), watchedAt: Date, rating: Double?) { save(.episodeLog(media, season: coordinate.0, episode: coordinate.1, watchedAt: watchedAt, rating: rating)) }
-    private func save(_ mutation: DetailMutation) {
-        guard !isSaving else { return }
-        isSaving = true
-        Task {
-            do {
-                let token = try await session.currentAccessToken()
-                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
-                await SeriesPersonalStateCache.shared.invalidate(media.route)
-                await MainActor.run { notice = "Saved to your Mosaic."; isSaving = false; MosaicStateInvalidation.post() }
-                await state.refresh(using: session)
-            } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+        .sheet(isPresented: $presentsLog) {
+            NavigationStack { MediaLogForm(media: media, onSaved: { notice = ("Episode logged.", .success) }) }
         }
     }
 }
@@ -239,165 +97,165 @@ private struct SeasonRow: View {
     let personalState: SeriesPersonalState?
     private var count: Int? { (media.eligibleEpisodeCounts ?? media.seasonEpisodeCounts)?[String(seasonNumber)] }
     private var watched: Int { personalState?.episodes.filter { $0.seasonNumber == seasonNumber }.count ?? 0 }
+    private var seasonState: String? { personalState?.seasons.first { $0.seasonNumber == seasonNumber }?.state }
+
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: media.posterURL, fallbackURL: media.backdropURL, symbol: "tv").frame(width: 56, height: 78).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 5) {
-                Text("Season \(seasonNumber)").font(.headline).foregroundStyle(MosaicColor.primaryText)
-                Text(count.map { "\(watched) / \($0) watched" } ?? "\(watched) watched").font(.footnote).foregroundStyle(MosaicColor.secondaryText)
-                if let count, count > 0 { ProgressView(value: Double(watched), total: Double(count)).tint(MosaicColor.accent) }
+                HStack(spacing: MosaicSpace.xSmall) {
+                    Text("Season \(seasonNumber)").font(.headline).foregroundStyle(MosaicColor.primaryText)
+                    if let seasonState { Text(LibraryStatus.label(for: seasonState)).font(.caption.weight(.semibold)).foregroundStyle(CatalogMediaType.tv.accent) }
+                }
+                Text(count.map { "\(watched) of \($0) watched" } ?? "\(watched) watched").font(.footnote).foregroundStyle(MosaicColor.secondaryText)
+                if let count, count > 0 { MosaicProgressBar(fraction: Double(watched) / Double(count), tint: CatalogMediaType.tv.accent) }
             }
             Spacer(minLength: 0)
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.mutedText)
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(MosaicColor.mutedText).accessibilityHidden(true)
         }
-        .padding(MosaicSpace.small)
-        .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.control, style: .continuous))
+        .padding(MosaicSpace.medium)
+        .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: MosaicRadius.media, style: .continuous).strokeBorder(MosaicColor.border) }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens the episode list")
     }
 }
 
-private struct SeasonExperienceView: View {
+struct SeasonExperienceView: View {
     let series: CatalogMedia
     let seasonNumber: Int
-    @State private var model: SeasonEpisodesViewModel
-    @State private var personalState: SeriesPersonalState?
-    @State private var personalStateModel: SeriesPersonalStateViewModel
-    @Environment(SessionStore.self) private var session
-    @State private var seasonStatus: String?
+    @Environment(\.mosaicServices) private var services
+    @State private var episodes = Loadable<[CatalogEpisode]>.idle
+    @State private var personal = SeriesPersonalStateViewModel()
     @State private var isSaving = false
     @State private var savingEpisodeIDs: Set<String> = []
-    @State private var notice: String?
+    @State private var notice: (String, MosaicNotice.Tone)?
 
-    init(series: CatalogMedia, seasonNumber: Int, personalState: SeriesPersonalState?) {
-        self.series = series
-        self.seasonNumber = seasonNumber
-        _model = State(initialValue: SeasonEpisodesViewModel(route: SeriesSeasonRoute(series: series, seasonNumber: seasonNumber), client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
-        _personalState = State(initialValue: personalState)
-        _personalStateModel = State(initialValue: SeriesPersonalStateViewModel(media: series, client: MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL)))
-        _seasonStatus = State(initialValue: personalState?.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state)
-    }
+    private var route: SeriesSeasonRoute { SeriesSeasonRoute(series: series, seasonNumber: seasonNumber) }
+    private var seasonStatus: String? { personal.value?.seasons.first { $0.seasonNumber == seasonNumber }?.state }
 
     var body: some View {
         MosaicScreen {
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                MosaicEyebrow(title: series.title)
-                Text("Season \(seasonNumber)").font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText)
-                if let episodes = model.episodes {
-                    let watched = episodes.filter { personalState?.watched($0) == true }.count
-                    Text("\(watched) / \(episodes.count) watched").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-                    ProgressView(value: Double(watched), total: Double(max(episodes.count, 1))).tint(MosaicColor.accent)
+                MosaicEyebrow(title: series.title, color: CatalogMediaType.tv.accent)
+                Text("Season \(seasonNumber)").font(MosaicType.display).foregroundStyle(MosaicColor.primaryText).accessibilityAddTraits(.isHeader)
+                if let episodes = episodes.value {
+                    let watched = episodes.filter { personal.value?.watched($0) == true }.count
+                    Text("\(watched) of \(episodes.count) watched").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
+                    if !episodes.isEmpty { MosaicProgressBar(fraction: Double(watched) / Double(episodes.count), tint: CatalogMediaType.tv.accent) }
                 }
-                HStack(spacing: MosaicSpace.small) {
-                    Menu {
-                        ForEach(["watchlist", "watching", "paused", "completed", "dropped"], id: \.self) { status in
-                            Button(status.replacingOccurrences(of: "_", with: " ").capitalized) { save(status) }
-                        }
-                    } label: { Label(seasonStatus?.replacingOccurrences(of: "_", with: " ").capitalized ?? "Set season status", systemImage: "checklist") }
-                    .buttonStyle(.glass)
-                    .disabled(isSaving)
-                    if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+                Menu {
+                    Picker("Season status", selection: Binding(get: { seasonStatus }, set: { if let status = $0 { save(status) } })) {
+                        ForEach(LibraryStatus.statuses(for: .tv), id: \.self) { Text($0.label).tag(Optional($0.rawValue)) }
+                    }
+                } label: {
+                    Label(seasonStatus.map(LibraryStatus.label(for:)) ?? "Set season status", systemImage: "checklist")
                 }
+                .buttonStyle(.bordered)
+                .disabled(isSaving)
+                if let notice { MosaicNotice(text: notice.0, tone: notice.1) }
             }
             .padding(.horizontal, MosaicLayout.pageHorizontal)
-            switch model.state {
+
+            switch episodes {
             case .idle, .loading:
                 ProgressView("Loading episodes").frame(maxWidth: .infinity, minHeight: 180)
-            case let .loaded(episodes):
-                ForEach(episodes) { episode in
-                    HStack(spacing: MosaicSpace.small) {
-                        NavigationLink { EpisodeExperienceView(series: series, seasonRoute: model.route, episode: episode, episodes: episodes, watched: personalState?.watched(episode) == true, watchedCoordinates: personalState?.watchedCoordinates ?? []) } label: {
-                            EpisodeRow(episode: episode, watched: personalState?.watched(episode) == true, showsStateIndicator: false)
+            case let .loaded(items) where items.isEmpty:
+                MosaicStateMessage(title: "No episodes listed", message: "The catalog has no episodes for this season yet.", systemImage: "tv")
+            case let .loaded(items):
+                LazyVStack(spacing: MosaicSpace.small) {
+                    ForEach(items) { episode in
+                        let watched = personal.value?.watched(episode) == true
+                        HStack(spacing: MosaicSpace.small) {
+                            NavigationLink {
+                                EpisodeExperienceView(series: series, seasonRoute: route, episode: episode, episodes: items)
+                            } label: {
+                                EpisodeRow(episode: episode)
+                            }
+                            .buttonStyle(.plain)
+                            Button { toggle(episode, watched: watched) } label: {
+                                Image(systemName: watched ? "checkmark.circle.fill" : "circle")
+                                    .font(.title2)
+                                    .foregroundStyle(watched ? CatalogMediaType.tv.accent : MosaicColor.mutedText)
+                                    .frame(width: MosaicLayout.minimumTouchTarget, height: MosaicLayout.minimumTouchTarget)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(savingEpisodeIDs.contains(episode.id))
+                            .accessibilityLabel(watched ? "Mark \(episode.title) unwatched" : "Mark \(episode.title) watched")
                         }
-                        .buttonStyle(.plain)
-                        Button {
-                            toggleEpisode(episode)
-                        } label: {
-                            Image(systemName: personalState?.watched(episode) == true ? "checkmark.circle.fill" : "circle")
-                                .font(.title3)
-                                .foregroundStyle(personalState?.watched(episode) == true ? MosaicColor.accent : MosaicColor.mutedText)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(savingEpisodeIDs.contains(episode.id))
-                        .accessibilityLabel(personalState?.watched(episode) == true ? "Mark \(episode.title) unwatched" : "Mark \(episode.title) watched")
                     }
-                    .padding(.horizontal, MosaicLayout.pageHorizontal)
                 }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
             case .failed:
-                ContentUnavailableView("Episodes are unavailable", systemImage: "exclamationmark.triangle", description: Text("Try again in a moment."))
+                MosaicStateMessage(title: "Episodes are unavailable", message: "Try again in a moment.", systemImage: "exclamationmark.triangle", actionTitle: "Try again") { Task { await loadEpisodes() } }
             }
         }
-        .navigationTitle("")
+        .navigationTitle("Season \(seasonNumber)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .task {
-            model.load()
-            await refreshPersonalState(force: false)
+            if case .idle = episodes { await loadEpisodes() }
+            await personal.load(series.route, services: services)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
-            Task { await refreshPersonalState(force: true) }
-        }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await personal.refresh(series.route, services: services) } }
+    }
+
+    private func loadEpisodes() async {
+        episodes = .loading
+        do { episodes = .loaded(try await services.season(route).episodes) }
+        catch { seriesLogger.error("Season episode request failed"); episodes = .failed(error) }
     }
 
     private func save(_ status: String) {
         guard !isSaving else { return }
         isSaving = true; notice = nil
         Task {
-            do {
-                let token = try await session.currentAccessToken()
-                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: DetailMutation.seasonState(series, season: seasonNumber, state: status), token: token)
-                await SeriesPersonalStateCache.shared.invalidate(series.route)
-                await MainActor.run { seasonStatus = status; notice = "Season status saved."; isSaving = false; MosaicStateInvalidation.post() }
-            } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+            do { try await services.mutate(.seasonState(series, season: seasonNumber, state: status)); notice = ("Season status saved.", .success) }
+            catch { notice = ("Mosaic couldn’t save that change. Try again.", .failure) }
+            isSaving = false
         }
     }
 
-    private func refreshPersonalState(force: Bool) async {
-        if force {
-            await personalStateModel.refresh(using: session)
-        } else {
-            await personalStateModel.load(using: session)
-        }
-        if let refreshed = personalStateModel.value {
-            personalState = refreshed
-            seasonStatus = refreshed.seasons.first(where: { $0.seasonNumber == seasonNumber })?.state
-        }
-    }
-
-    private func toggleEpisode(_ episode: CatalogEpisode) {
+    private func toggle(_ episode: CatalogEpisode, watched: Bool) {
         guard !savingEpisodeIDs.contains(episode.id) else { return }
         savingEpisodeIDs.insert(episode.id)
-        let watched = personalState?.watched(episode) == true
         Task {
             do {
-                let token = try await session.currentAccessToken()
-                let mutation = watched
-                    ? DetailMutation.episodeUnwatch(series, season: seasonNumber, episode: episode.episodeNumber)
-                    : DetailMutation.episodeLog(series, season: seasonNumber, episode: episode.episodeNumber, watchedAt: .now, rating: nil)
-                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
-                await SeriesPersonalStateCache.shared.invalidate(series.route)
-                await SeriesSeasonCache.shared.invalidate(model.route)
-                await MainActor.run { savingEpisodeIDs.remove(episode.id); MosaicStateInvalidation.post() }
-                await refreshPersonalState(force: true)
+                let mutation: DetailMutation = watched
+                    ? .episodeUnwatch(series, season: seasonNumber, episode: episode.episodeNumber)
+                    : .episodeLog(series, season: seasonNumber, episode: episode.episodeNumber, watchedAt: .now, rating: nil, episodeTitle: episode.title)
+                try await services.mutate(mutation)
             } catch {
-                await MainActor.run { savingEpisodeIDs.remove(episode.id); notice = "Mosaic couldn’t save that change. Try again." }
+                notice = ("Mosaic couldn’t save that change. Try again.", .failure)
             }
+            savingEpisodeIDs.remove(episode.id)
         }
     }
 }
 
 private struct EpisodeRow: View {
     let episode: CatalogEpisode
-    let watched: Bool
-    var showsStateIndicator = true
     var body: some View {
         HStack(spacing: MosaicSpace.medium) {
-            MosaicArtwork(url: episode.stillURL, symbol: "tv").frame(width: 104, height: 62).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("S\(String(format: "%02d", episode.seasonNumber))E\(String(format: "%02d", episode.episodeNumber))").font(.caption.weight(.bold)).foregroundStyle(MosaicColor.accent)
-                Text(episode.title).font(.headline).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
-                Text([episode.runtimeMinutes.map { "\($0)m" }, episode.airDate, episode.publicRating.map { "★ \($0.formatted(.number.precision(.fractionLength(1))))" }].compactMap { $0 }.joined(separator: " · ")).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1)
+            MosaicArtwork(url: episode.stillURL, mediaType: .tv)
+                .frame(width: 104, height: 104 / MosaicArtworkRatio.still)
+                .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.small, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(EpisodeCode.format(season: episode.seasonNumber, episode: episode.episodeNumber)).font(.caption.weight(.bold)).foregroundStyle(CatalogMediaType.tv.accent)
+                Text(episode.title).font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.primaryText).lineLimit(2)
+                Text(EpisodeMetadata.line(for: episode)).font(.caption).foregroundStyle(MosaicColor.secondaryText).lineLimit(1)
             }
             Spacer(minLength: 0)
-            if showsStateIndicator { Image(systemName: watched ? "checkmark.circle.fill" : "circle").foregroundStyle(watched ? MosaicColor.accent : MosaicColor.mutedText) }
         }
-        .padding(.vertical, MosaicSpace.xSmall)
+        .padding(.vertical, MosaicSpace.xxSmall)
+        .contentShape(Rectangle())
+    }
+}
+
+enum EpisodeMetadata {
+    /// Episode ratings come from TMDB on its 0–10 scale.
+    static func line(for episode: CatalogEpisode) -> String {
+        [episode.runtimeMinutes.map { "\($0)m" }, episode.airDate, episode.publicRating.flatMap { CommunityRating(raw: $0, provider: "tmdb", count: episode.publicRatingCount) }.map { "★ \($0.formattedValue)" }].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
@@ -406,74 +264,72 @@ private struct EpisodeExperienceView: View {
     let seasonRoute: SeriesSeasonRoute
     let episode: CatalogEpisode
     let episodes: [CatalogEpisode]
-    let watched: Bool
-    let watchedCoordinates: Set<String>
-    @Environment(SessionStore.self) private var session
-    @State private var isWatched: Bool
+    @Environment(\.mosaicServices) private var services
+    @State private var personal = SeriesPersonalStateViewModel()
     @State private var isSaving = false
-    @State private var presentsLogSheet = false
-    @State private var notice: String?
+    @State private var presentsLog = false
+    @State private var notice: (String, MosaicNotice.Tone)?
 
-    init(series: CatalogMedia, seasonRoute: SeriesSeasonRoute, episode: CatalogEpisode, episodes: [CatalogEpisode], watched: Bool, watchedCoordinates: Set<String> = []) {
-        self.series = series
-        self.seasonRoute = seasonRoute
-        self.episode = episode
-        self.episodes = episodes
-        self.watched = watched
-        self.watchedCoordinates = watchedCoordinates
-        _isWatched = State(initialValue: watched)
-    }
+    private var isWatched: Bool { personal.value?.watched(episode) == true }
+    private var watchRecord: SeriesPersonalState.WatchedEpisode? { personal.value?.episodes.first { $0.seasonNumber == episode.seasonNumber && $0.episodeNumber == episode.episodeNumber } }
 
     var body: some View {
         MosaicScreen {
-            MosaicArtwork(url: episode.stillURL, fallbackURL: series.backdropURL ?? series.posterURL, symbol: "tv")
-                .aspectRatio(16 / 9, contentMode: .fit)
+            MosaicArtwork(url: episode.stillURL, fallbackURL: series.backdropURL ?? series.posterURL, mediaType: .tv)
+                .aspectRatio(MosaicArtworkRatio.still, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
                 .padding(.horizontal, MosaicLayout.pageHorizontal)
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                MosaicEyebrow(title: "\(series.title) · Season \(episode.seasonNumber)")
-                Text("Episode \(episode.episodeNumber)").font(.headline).foregroundStyle(MosaicColor.secondaryText)
-                Text(episode.title).font(.system(.largeTitle, design: .serif, weight: .semibold)).foregroundStyle(MosaicColor.primaryText).fixedSize(horizontal: false, vertical: true)
-                Text([episode.airDate, episode.runtimeMinutes.map { "\($0) min" }].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
-                if let rating = episode.publicRating { MosaicRating(value: rating) }
-            }.padding(.horizontal, MosaicLayout.pageHorizontal)
-            if let overview = episode.overview, !overview.isEmpty { VStack(alignment: .leading, spacing: MosaicSpace.small) { MosaicSectionHeader("About this episode"); Text(overview).foregroundStyle(MosaicColor.secondaryText).padding(.horizontal, MosaicLayout.pageHorizontal) } }
+                MosaicEyebrow(title: "\(series.title) · \(EpisodeCode.format(season: episode.seasonNumber, episode: episode.episodeNumber))", color: CatalogMediaType.tv.accent)
+                Text(episode.title).font(MosaicType.display).foregroundStyle(MosaicColor.primaryText).fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
+                let line = EpisodeMetadata.line(for: episode)
+                if !line.isEmpty { Text(line).font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
+            }
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
+            if let overview = episode.overview, !overview.isEmpty { DetailAbout(text: overview) }
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
                 MosaicSectionHeader("Your episode")
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
-                    Label(isWatched ? "Watched" : "Not watched", systemImage: isWatched ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isWatched ? MosaicColor.accent : MosaicColor.secondaryText)
+                    Label(isWatched ? watchedText : "Not watched", systemImage: isWatched ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isWatched ? CatalogMediaType.tv.accent : MosaicColor.secondaryText)
                     if isWatched {
-                        Button("Unwatch") { save(.episodeUnwatch(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber)) }
-                            .buttonStyle(.glass)
-                            .disabled(isSaving)
+                        Button("Mark unwatched", systemImage: "arrow.uturn.backward") { unwatch() }.buttonStyle(.bordered).disabled(isSaving)
                     } else {
-                        Button("Log watched") { presentsLogSheet = true }
-                            .buttonStyle(.glassProminent)
-                            .disabled(isSaving)
+                        Button("Log this episode", systemImage: "plus.circle.fill") { presentsLog = true }
+                            .buttonStyle(.borderedProminent).tint(CatalogMediaType.tv.accent).foregroundStyle(MosaicColor.onLight).disabled(isSaving || personal.value == nil && personal.isLoading)
                     }
-                    if let notice { Text(notice).font(.footnote).foregroundStyle(MosaicColor.secondaryText) }
+                    if let notice { MosaicNotice(text: notice.0, tone: notice.1) }
                 }
                 .padding(.horizontal, MosaicLayout.pageHorizontal)
             }
-            EpisodeAdjacentNavigation(series: series, seasonRoute: seasonRoute, episode: episode, episodes: episodes, watchedCoordinates: watchedCoordinates)
+            EpisodeAdjacentNavigation(series: series, seasonRoute: seasonRoute, episode: episode, episodes: episodes)
         }
-        .sheet(isPresented: $presentsLogSheet) { EpisodeLogSheet { date, rating in save(.episodeLog(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber, watchedAt: date, rating: rating)) } }
+        .navigationTitle(EpisodeCode.format(season: episode.seasonNumber, episode: episode.episodeNumber))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .task { await personal.load(series.route, services: services) }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await personal.refresh(series.route, services: services) } }
+        .sheet(isPresented: $presentsLog) { EpisodeLogSheet { date, rating in log(date: date, rating: rating) } }
     }
 
-    private func save(_ mutation: DetailMutation) {
+    private var watchedText: String {
+        guard let record = watchRecord else { return "Watched" }
+        let rating = record.rating.map { " · \(UserRating.format($0)) ★" } ?? ""
+        return "Watched \(record.watchedAt.formatted(date: .abbreviated, time: .omitted))\(rating)"
+    }
+
+    private func log(date: Date, rating: Double?) {
+        perform(.episodeLog(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber, watchedAt: date, rating: rating, episodeTitle: episode.title), success: "Episode logged.")
+    }
+    private func unwatch() { perform(.episodeUnwatch(series, season: seasonRoute.seasonNumber, episode: episode.episodeNumber), success: "Episode marked unwatched.") }
+
+    private func perform(_ mutation: DetailMutation, success: String) {
         guard !isSaving else { return }
         isSaving = true; notice = nil
         Task {
-            do {
-                let token = try await session.currentAccessToken()
-                let clock = ContinuousClock(); let start = clock.now
-                try await MosaicAPIClient(baseURL: AppConfiguration.current.apiBaseURL).mutate(path: "/api/me/state", body: mutation, token: token)
-                seriesLogger.debug("Episode mutation completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
-                await SeriesPersonalStateCache.shared.invalidate(series.route)
-                await SeriesSeasonCache.shared.invalidate(seasonRoute)
-                await MainActor.run { isWatched = mutation.type == "episode.log"; notice = isWatched ? "Episode logged." : "Episode marked unwatched."; isSaving = false; MosaicStateInvalidation.post() }
-            } catch { await MainActor.run { notice = "Mosaic couldn’t save that change. Try again."; isSaving = false } }
+            do { try await services.mutate(mutation); notice = (success, .success) }
+            catch { notice = ("Mosaic couldn’t save that change. Try again.", .failure) }
+            isSaving = false
         }
     }
 }
@@ -482,17 +338,28 @@ private struct EpisodeLogSheet: View {
     let onSave: (Date, Double?) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var date = Date.now
-    @State private var rating = 0.0
+    @State private var rating: Double?
     var body: some View {
         NavigationStack {
             Form {
-                Section("Watched") { DatePicker("Date", selection: $date, displayedComponents: .date) }
-                Section("Your rating") { Picker("Rating", selection: $rating) { Text("No rating").tag(0.0); ForEach([1.0, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], id: \.self) { Text("\($0.formatted(.number.precision(.fractionLength(0...1)))) stars").tag($0) } } }
+                Section("Watched") { DatePicker("Date", selection: $date, in: ...Date.now, displayedComponents: .date) }
+                Section("Your rating") {
+                    Picker("Rating", selection: $rating) {
+                        Text("No rating").tag(Double?.none)
+                        ForEach(UserRating.options.reversed(), id: \.self) { Text("\(UserRating.format($0)) ★").tag(Optional($0)) }
+                    }
+                }
             }
+            .scrollContentBackground(.hidden)
+            .background(MosaicColor.background)
             .navigationTitle("Log episode")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: dismiss.callAsFunction) }; ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(date, rating == 0 ? nil : rating); dismiss() } } }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { onSave(date, rating); dismiss() } }
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }
 
@@ -501,90 +368,64 @@ private struct EpisodeAdjacentNavigation: View {
     let seasonRoute: SeriesSeasonRoute
     let episode: CatalogEpisode
     let episodes: [CatalogEpisode]
-    let watchedCoordinates: Set<String>
     var body: some View {
-        let index = episodes.firstIndex(where: { $0.id == episode.id })
+        let index = episodes.firstIndex { $0.id == episode.id }
         HStack {
-            if let previous = index.flatMap({ $0 > 0 ? episodes[$0 - 1] : nil }) { NavigationLink("Previous") { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: previous, episodes: episodes, watched: watchedCoordinates.contains("\(previous.seasonNumber):\(previous.episodeNumber)")) } }
+            if let previous = index.flatMap({ $0 > 0 ? episodes[$0 - 1] : nil }) {
+                NavigationLink { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: previous, episodes: episodes) } label: {
+                    Label("Previous", systemImage: "chevron.left")
+                }
+                .accessibilityLabel("Previous episode, \(previous.title)")
+            }
             Spacer()
-            if let next = index.flatMap({ $0 + 1 < episodes.count ? episodes[$0 + 1] : nil }) { NavigationLink("Next") { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: next, episodes: episodes, watched: watchedCoordinates.contains("\(next.seasonNumber):\(next.episodeNumber)")) } }
+            if let next = index.flatMap({ $0 + 1 < episodes.count ? episodes[$0 + 1] : nil }) {
+                NavigationLink { EpisodeExperienceView(series: series, seasonRoute: seasonRoute, episode: next, episodes: episodes) } label: {
+                    Label("Next", systemImage: "chevron.right").labelStyle(TrailingIconLabelStyle())
+                }
+                .accessibilityLabel("Next episode, \(next.title)")
+            }
         }
-        .font(.subheadline.weight(.semibold)).foregroundStyle(MosaicColor.accent)
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(MosaicColor.accent)
         .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 }
 
-@MainActor @Observable
-private final class SeasonEpisodesViewModel {
-    enum State { case idle, loading, loaded([CatalogEpisode]), failed }
-    let route: SeriesSeasonRoute
-    private let request: @Sendable (SeriesSeasonRoute) async throws -> CatalogSeasonResponse
-    private var task: Task<Void, Never>?
-    private(set) var state: State = .idle
-    var episodes: [CatalogEpisode]? { if case let .loaded(items) = state { items } else { nil } }
-
-    init(route: SeriesSeasonRoute, client: MosaicAPIClient) {
-        self.route = route
-        request = { route in try await client.publicRequest(path: route.catalogPath, as: CatalogSeasonResponse.self) }
-    }
-
-    func load() {
-        guard task == nil else { return }
-        state = .loading
-        task = Task { [weak self, route, request] in
-            guard let self else { return }
-            defer { self.task = nil }
-            if let cached = await SeriesSeasonCache.shared.episodes(for: route) { self.state = .loaded(cached); return }
-            do {
-                let clock = ContinuousClock(); let start = clock.now
-                let response = try await request(route)
-                seriesLogger.debug("Season episode request completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
-                try Task.checkCancellation()
-                await SeriesSeasonCache.shared.store(response.episodes, for: route)
-                self.state = .loaded(response.episodes)
-            } catch is CancellationError { self.state = .idle }
-            catch { seriesLogger.error("Season episode request failed"); self.state = .failed }
-        }
-    }
+private struct TrailingIconLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View { HStack(spacing: 4) { configuration.title; configuration.icon } }
 }
 
+/// The user's watched episodes and season states for one series. Every
+/// season and episode screen reads the same cached value, so ticks agree.
 @MainActor @Observable
 final class SeriesPersonalStateViewModel {
-    private let route: MediaDetailRoute
-    private let request: @Sendable (String) async throws -> SeriesPersonalState
-    private var task: Task<Void, Never>?
     private(set) var value: SeriesPersonalState?
     private(set) var isLoading = false
+    private var task: Task<Void, Never>?
 
-    init(media: CatalogMedia, client: MosaicAPIClient) {
-        route = media.route
-        let encodedProvider = media.provider.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? media.provider
-        let encodedID = media.providerID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? media.providerID
-        let path = "/api/me/series-state?provider=\(encodedProvider)&providerId=\(encodedID)"
-        request = { token in try await client.request(path, token: token, as: SeriesPersonalState.self) }
-    }
-
-    func load(using session: SessionStore) async {
-        guard task == nil else { return }
+    func load(_ route: MediaDetailRoute, services: MosaicServices) async {
         if let cached = await SeriesPersonalStateCache.shared.value(for: route) { value = cached; return }
+        guard task == nil else { await task?.value; return }
         isLoading = true
-        task = Task { [weak self] in
-            guard let self else { return }
-            defer { self.task = nil; self.isLoading = false }
+        let task = Task {
             do {
-                let clock = ContinuousClock(); let start = clock.now
-                let loaded = try await self.request(session.currentAccessToken())
-                seriesLogger.debug("Personal Series state completed in \(String(describing: start.duration(to: clock.now)), privacy: .public)")
-                try Task.checkCancellation()
-                await SeriesPersonalStateCache.shared.store(loaded, for: self.route)
-                self.value = loaded
-            } catch is CancellationError { } catch { seriesLogger.error("Personal Series state failed") }
+                let loaded = try await services.seriesState(route)
+                await SeriesPersonalStateCache.shared.store(loaded, for: route)
+                value = loaded
+            } catch is CancellationError {
+            } catch {
+                seriesLogger.error("Personal Series state failed")
+            }
+            isLoading = false
         }
+        self.task = task
+        await task.value
+        self.task = nil
     }
 
-    func refresh(using session: SessionStore) async {
+    func refresh(_ route: MediaDetailRoute, services: MosaicServices) async {
         task?.cancel(); task = nil
         await SeriesPersonalStateCache.shared.invalidate(route)
-        await load(using: session)
+        await load(route, services: services)
     }
 }

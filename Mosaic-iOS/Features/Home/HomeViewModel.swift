@@ -55,14 +55,6 @@ final class HomeViewModel {
     private var loadTask: Task<Void, Never>?
     private(set) var state: HomeViewState = .idle
 
-    init(client: MosaicAPIClient, accessToken: @escaping @MainActor () async throws -> String) {
-        requestStories = {
-            let token = try await accessToken()
-            let response = try await client.request("/api/me/continue?limit=8", token: token, as: ContinueResponseDTO.self)
-            return response.items.map(ContinueStory.init(dto:))
-        }
-    }
-
     init(requestStories: @escaping @MainActor () async throws -> [ContinueStory]) {
         self.requestStories = requestStories
     }

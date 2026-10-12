@@ -2,7 +2,7 @@ import Foundation
 
 /// Provider-qualified identities keep Season and Episode navigation independent
 /// from localized titles and from any provider-specific integer assumptions.
-struct SeriesSeasonRoute: Hashable, Sendable {
+nonisolated struct SeriesSeasonRoute: Hashable, Sendable {
     let provider: String
     let seriesProviderID: String
     let seasonNumber: Int
@@ -20,7 +20,7 @@ struct SeriesSeasonRoute: Hashable, Sendable {
     var catalogPath: String { "/api/catalog/\(provider)/tv/\(seriesProviderID)/season/\(seasonNumber)" }
 }
 
-struct SeriesEpisodeRoute: Hashable, Sendable {
+nonisolated struct SeriesEpisodeRoute: Hashable, Sendable {
     let season: SeriesSeasonRoute
     let episodeNumber: Int
 
@@ -30,11 +30,11 @@ struct SeriesEpisodeRoute: Hashable, Sendable {
     }
 }
 
-struct CatalogSeasonResponse: Decodable, Sendable {
+nonisolated struct CatalogSeasonResponse: Decodable, Sendable {
     let episodes: [CatalogEpisode]
 }
 
-struct CatalogEpisode: Decodable, Equatable, Identifiable, Sendable {
+nonisolated struct CatalogEpisode: Decodable, Equatable, Identifiable, Sendable {
     let id: String
     let seasonNumber: Int
     let episodeNumber: Int
@@ -61,7 +61,7 @@ actor SeriesSeasonCache {
     func invalidate(_ route: SeriesSeasonRoute) { values[route] = nil }
 }
 
-struct SeriesPersonalState: Decodable, Equatable, Sendable {
+nonisolated struct SeriesPersonalState: Decodable, Equatable, Sendable {
     let status: String?
     let isFavorite: Bool
     let userRating: Double?

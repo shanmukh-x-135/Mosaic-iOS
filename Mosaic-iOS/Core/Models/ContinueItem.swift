@@ -1,10 +1,10 @@
 import Foundation
 
-struct ContinueResponseDTO: Decodable, Sendable {
+nonisolated struct ContinueResponseDTO: Decodable, Sendable {
     let items: [ContinueItemDTO]
 }
 
-struct ContinueItemDTO: Decodable, Sendable {
+nonisolated struct ContinueItemDTO: Decodable, Sendable {
     let id: String
     let mediaType: ContinueMediaType
     let provider: String
@@ -24,10 +24,10 @@ struct ContinueItemDTO: Decodable, Sendable {
     }
 }
 
-enum ContinueMediaType: String, Decodable, Sendable { case series, book, game }
-enum ContinueStatus: String, Decodable, Sendable { case watching, reading, playing }
+nonisolated enum ContinueMediaType: String, Decodable, Sendable { case series, book, game }
+nonisolated enum ContinueStatus: String, Decodable, Sendable { case watching, reading, playing }
 
-struct ContinueProgressDTO: Decodable, Sendable {
+nonisolated struct ContinueProgressDTO: Decodable, Sendable {
     let watchedEpisodes: Int?
     let totalEpisodes: Int?
     let currentPage: Int?
@@ -38,13 +38,13 @@ struct ContinueProgressDTO: Decodable, Sendable {
     let nextEpisodeNumber: Int?
 }
 
-struct ContinueNextActionDTO: Decodable, Sendable {
+nonisolated struct ContinueNextActionDTO: Decodable, Sendable {
     let type: String
     let seasonNumber: Int?
     let episodeNumber: Int?
 }
 
-struct ContinueStory: Identifiable, Equatable, Sendable {
+nonisolated struct ContinueStory: Identifiable, Hashable, Sendable {
     let id: String
     let mediaType: ContinueMediaType
     let provider: String
@@ -63,9 +63,6 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
         title = dto.title
         artworkURL = dto.backdropURL
         fallbackArtworkURL = dto.posterURL
-        #if DEBUG
-        print("[Mosaic ContinueArtwork] title=\(title) identity=\(dto.provider):\(dto.mediaType.rawValue):\(dto.providerId) backdrop=\(dto.backdropURL?.absoluteString ?? "nil") poster=\(dto.posterURL?.absoluteString ?? "nil")")
-        #endif
         status = dto.status
         switch dto.mediaType {
         case .series:
@@ -83,15 +80,22 @@ struct ContinueStory: Identifiable, Equatable, Sendable {
         }
     }
 
-    var mediaLabel: String { mediaType.rawValue.capitalized }
-    var actionTitle: String { mediaType == .book ? "Continue Reading" : "Continue" }
+    var mediaLabel: String { catalogMediaType.displayName }
+    var catalogMediaType: CatalogMediaType { CatalogMediaType(mediaType) }
+    var actionTitle: String {
+        switch mediaType {
+        case .series: if case let .episodes(_, _, _, season?, episode?) = progress { "Up next · \(EpisodeCode.format(season: season, episode: episode))" } else { "Continue watching" }
+        case .book: "Continue reading"
+        case .game: "Continue playing"
+        }
+    }
 
     var detailRoute: MediaDetailRoute {
         MediaDetailRoute(provider: provider, mediaType: CatalogMediaType(mediaType), providerID: providerID)
     }
 }
 
-extension CatalogMediaType {
+nonisolated extension CatalogMediaType {
     init(_ continueType: ContinueMediaType) {
         switch continueType {
         case .series: self = .tv
@@ -101,25 +105,24 @@ extension CatalogMediaType {
     }
 }
 
-enum ContinueProgress: Equatable, Sendable {
+nonisolated enum ContinueProgress: Hashable, Sendable {
     case episodes(watched: Int?, total: Int?, percent: Double?, nextSeason: Int?, nextEpisode: Int?)
     case pages(current: Int?, total: Int?, percent: Double?)
     case game(percent: Double?, playtimeMinutes: Int)
 
     var detailLines: [String] {
         switch self {
-        case let .episodes(watched, total, _, nextSeason, nextEpisode):
+        case let .episodes(watched, total, _, _, _):
             var lines: [String] = []
-            if let nextSeason, let nextEpisode { lines.append("Next: S\(nextSeason)E\(nextEpisode)") }
-            if let watched, watched > 0 { lines.append(total.map { "\(watched) / \($0) episodes" } ?? "\(watched) episodes") }
+            if let watched, watched > 0 { lines.append(total.map { "\(watched) of \($0) episodes" } ?? "\(watched) episodes watched") }
             return lines
         case let .pages(current, total, percent):
-            if let current, let total { return ["\(current) / \(total) pages"] }
+            if let current, let total { return ["Page \(current) of \(total)"] }
             if let current { return ["Page \(current)"] }
             if let percent, percent > 0 { return ["\(Self.percentText(percent)) read"] }
             return []
         case let .game(percent, playtimeMinutes):
-            var lines = playtimeMinutes > 0 ? [Self.playtimeText(playtimeMinutes)] : []
+            var lines = playtimeMinutes > 0 ? ["\(MosaicDuration.playtime(playtimeMinutes)) played"] : []
             if let percent, percent > 0 { lines.append(Self.percentText(percent)) }
             if lines.isEmpty { lines.append("In progress") }
             return lines
@@ -141,10 +144,4 @@ enum ContinueProgress: Equatable, Sendable {
         "\(Int(percent.rounded()))%"
     }
 
-    private static func playtimeText(_ minutes: Int) -> String {
-        let hours = minutes / 60
-        let remainder = minutes % 60
-        if hours > 0 { return remainder > 0 ? "\(hours)h \(remainder)m played" : "\(hours)h played" }
-        return "\(minutes)m played"
-    }
 }
