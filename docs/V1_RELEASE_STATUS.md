@@ -12,7 +12,7 @@ Last updated: 2026-11-10.
 | Item | State | Notes |
 | --- | --- | --- |
 | iOS feature scope | Done | Home, Discover, Library, Detail, Series/Seasons, Quick Log, Search, Lists (read-only), Profile, Activity, Settings, Edit Profile, Watch region. |
-| Web API contract | Code done, **not deployed** | `PATCH /api/me/profile`, `progressId`, `watchCount`, `progress.platform`. Local web typecheck clean and 286/286 tests pass. The deployed server must include these before the iOS build is useful. |
+| Web API contract | **Deployed** (2026-11-10) | `PATCH /api/me/profile`, `progressId`, `watchCount`, `progress.platform`. Web commit `d8acc42` pushed to `origin/main`; the live route now answers `401 UNAUTHORIZED` instead of `404`. Local typecheck clean, 286/286 tests pass. |
 | iOS build | Passing | `xcodebuild … -destination 'generic/platform=iOS' build` → BUILD SUCCEEDED. |
 | iOS tests compile | Passing | `build-for-testing` → TEST BUILD SUCCEEDED. |
 | iOS tests run | **Not run** | No simulator runtime is installed on this machine. Install one (Xcode → Settings → Components) and run `scripts/test.sh`. |
@@ -25,16 +25,14 @@ Last updated: 2026-11-10.
 
 ## Blocking steps, in order
 
-1. **Deploy the web changes** (`~/Documents/Tracking App`, branch `main`) so
-   `PATCH /api/me/profile` and the new library fields are live.
-2. **Install a simulator runtime** and run `scripts/test.sh`; fix any failure.
-3. **Run the device QA matrix** below on a real iPhone against the deployed
+1. **Install a simulator runtime** and run `scripts/test.sh`; fix any failure.
+2. **Run the device QA matrix** below on a real iPhone against the deployed
    API, using a dedicated test account.
-4. **Create the App Store Connect record** for
+3. **Create the App Store Connect record** for
    `com.shanmukhpgsspersonalteam.MosaiciOS` with a paid Apple Developer team.
-5. **Archive and upload:** `scripts/archive.sh`, then Organizer → Distribute App
+4. **Archive and upload:** `scripts/archive.sh`, then Organizer → Distribute App
    → App Store Connect → Upload; add the build to the internal TestFlight group.
-6. **Fill App Privacy** in App Store Connect to match the privacy manifest
+5. **Fill App Privacy** in App Store Connect to match the privacy manifest
    (data linked to the user, not used for tracking).
 
 ## Device QA: mutation matrix

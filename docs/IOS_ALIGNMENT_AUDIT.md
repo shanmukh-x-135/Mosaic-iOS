@@ -2,7 +2,7 @@
 
 Status: **Phase 2 and the V1 completion pass implemented; awaiting device QA and
 TestFlight upload.** Phase 2 is committed on `main` (`cdf2023`). The V1
-completion pass (§9, 2026-11-10) is uncommitted at the time of writing; see
+completion pass (§9, 2026-11-10) is committed on `main` (`6950fdc`); see
 `docs/V1_RELEASE_STATUS.md` for the current release state.
 
 Web reference: `~/Documents/Tracking App` at `f4cc9cb` (`main`) plus the V1
@@ -230,9 +230,15 @@ Definition of done: **internal TestFlight V1**, iPhone only, portrait only.
 
 ### Verification
 
-- iOS app build: **BUILD SUCCEEDED** (`generic/platform=iOS`, code signing
-  disabled for the check).
-- iOS test target: **TEST BUILD SUCCEEDED** (`build-for-testing`).
+- iOS Debug and Release builds: **BUILD SUCCEEDED** (`generic/platform=iOS`,
+  code signing disabled for the check). The Release bundle contains
+  `PrivacyInfo.xcprivacy` and declares `UIDeviceFamily = [1]` with portrait-only
+  orientation.
+- iOS test target: **TEST BUILD SUCCEEDED** (`build-for-testing`; 60 tests:
+  36 foundation + 24 alignment).
+- Web: `npm run typecheck` clean, `npm test` 286/286, pushed to `origin/main`
+  (`d8acc42`); the live `PATCH /api/me/profile` answers `401 UNAUTHORIZED` for
+  an unauthenticated request.
 - Unit tests did **not** run in this environment: no simulator runtime is
   installed. Run `scripts/test.sh` after installing one.
 - Device QA is outstanding; see `docs/V1_RELEASE_STATUS.md`.
