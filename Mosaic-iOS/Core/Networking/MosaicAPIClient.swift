@@ -36,14 +36,26 @@ struct MosaicAPIClient: Sendable {
         var request = URLRequest(url: url); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization"); request.setValue("application/json", forHTTPHeaderField: "Accept"); return request
     }
     func mutate<Body: Encodable>(path: String, body: Body, token: String) async throws {
+        _ = try await send(method: "POST", path: path, body: body, token: token)
+    }
+    /// Sends an authenticated body and decodes the response, used by endpoints
+    /// such as `PATCH /api/me/profile` that return the updated resource.
+    func send<Body: Encodable, Response: Decodable>(method: String, path: String, body: Body, token: String, as type: Response.Type = Response.self) async throws -> Response {
+        let data = try await send(method: method, path: path, body: body, token: token)
+        do { return try JSONDecoder.mosaic.decode(Response.self, from: data) }
+        catch { throw MosaicAPIError.decoding("Mosaic returned data the app could not read.") }
+    }
+    @discardableResult
+    private func send<Body: Encodable>(method: String, path: String, body: Body, token: String) async throws -> Data {
         var request = try makeRequest(path: path, token: token)
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw MosaicAPIError.invalidResponse }
             guard (200..<300).contains(http.statusCode) else { throw decodeError(data: data, statusCode: http.statusCode) }
+            return data
         } catch let error as MosaicAPIError { throw error } catch is CancellationError { throw CancellationError() } catch { throw MosaicAPIError.network("Unable to connect to Mosaic. Please try again.") }
     }
     private func perform<T: Decodable>(_ request: URLRequest, as type: T.Type) async throws -> T {

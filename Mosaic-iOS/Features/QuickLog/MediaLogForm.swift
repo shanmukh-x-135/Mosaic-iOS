@@ -9,7 +9,10 @@ struct MediaLogForm: View {
     var onSaved: () -> Void = {}
     @Environment(\.mosaicServices) private var services
     @Environment(\.dismiss) private var dismiss
-    @State private var records = Loadable<MosaicStateSnapshot>.idle
+    /// The user's library row for this title. It carries the persisted
+    /// `progressId` plus the saved values that seed the form, so logging no
+    /// longer needs a full `/api/me/state` snapshot.
+    @State private var libraryState = Loadable<[LibraryItemDTO]>.idle
     @State private var seriesState: SeriesPersonalState?
     @State private var draft = Draft()
     @State private var isSaving = false
@@ -47,7 +50,7 @@ struct MediaLogForm: View {
                 MosaicMediaRow(summary: MosaicMediaSummary(media), lines: [media.resultMetadata].filter { !$0.isEmpty }, thumbnailWidth: 44)
                     .listRowBackground(MosaicColor.elevated)
             }
-            if needsRecords, records.isLoading {
+            if needsRecords, libraryState.isLoading {
                 Section { HStack { ProgressView(); Text("Loading your saved progress…").foregroundStyle(MosaicColor.secondaryText) } }
             } else {
                 fields
@@ -71,7 +74,7 @@ struct MediaLogForm: View {
 
     private var canSave: Bool {
         if isSaving || validationMessage != nil { return false }
-        if needsRecords, records.value == nil { return false }
+        if needsRecords, libraryState.value == nil { return false }
         return true
     }
 
@@ -190,29 +193,33 @@ struct MediaLogForm: View {
     }
 
     /// The starting draft: an existing record's values, or the medium's defaults.
-    static func initialDraft(media: CatalogMedia, snapshot: MosaicStateSnapshot?, libraryStatus: String?, seriesState: SeriesPersonalState?) -> Draft {
+    /// `entry` is the user's library row; its `progressId` is the playthrough or
+    /// reading an update must target, so logging never duplicates a record.
+    static func initialDraft(media: CatalogMedia, entry: LibraryItemDTO?, seriesState: SeriesPersonalState?) -> Draft {
         var draft = Draft()
         func text(_ value: Double?) -> String { value.map { $0.formatted(.number.precision(.fractionLength(0...1)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))) } ?? "" }
+        let libraryStatus = entry?.status
         switch media.mediaType {
         case .movie:
             draft.isRewatch = libraryStatus == LibraryStatus.watched.rawValue
         case .tv:
             if let next = SeriesProgress.nextEpisode(media: media, watched: seriesState?.watchedCoordinates ?? []) { draft.season = next.season; draft.episode = next.episode }
         case .game:
-            if let record = snapshot?.playthrough(for: media) {
-                draft.playthroughID = record.id; draft.status = record.status; draft.platform = record.platform ?? ""
+            if let entry, let progress = entry.progress {
+                draft.playthroughID = entry.progressID; draft.status = entry.status; draft.platform = progress.platform ?? ""
                 // Two decimals of an hour (≤ 0.3 min) always round back to the stored minute.
-                draft.playtimeHours = record.playtimeMinutes > 0 ? (Double(record.playtimeMinutes) / 60).formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))) : ""
-                draft.percent = text(record.progressPercent); draft.rating = record.rating
+                let minutes = progress.playtimeMinutes ?? 0
+                draft.playtimeHours = minutes > 0 ? (Double(minutes) / 60).formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(Locale(identifier: "en_US_POSIX"))) : ""
+                draft.percent = text(progress.percent); draft.rating = entry.userRating
             } else {
                 draft.status = libraryStatus.flatMap { LibraryStatus(rawValue: $0)?.applies(to: .game) == true ? $0 : nil } ?? LibraryStatus.playing.rawValue
             }
         case .book:
-            if let record = snapshot?.reading(for: media) {
-                draft.readingID = record.id; draft.status = record.status
-                draft.currentPage = record.currentPage.map(String.init) ?? ""
-                draft.totalPages = (record.totalPages ?? media.pageCount).map(String.init) ?? ""
-                draft.percent = text(record.progressPercent); draft.rating = record.rating
+            if let entry, let progress = entry.progress {
+                draft.readingID = entry.progressID; draft.status = entry.status
+                draft.currentPage = progress.currentPage.map(String.init) ?? ""
+                draft.totalPages = (progress.totalPages ?? media.pageCount).map(String.init) ?? ""
+                draft.percent = text(progress.percent); draft.rating = entry.userRating
             } else {
                 draft.status = libraryStatus.flatMap { LibraryStatus(rawValue: $0)?.applies(to: .book) == true ? $0 : nil } ?? LibraryStatus.reading.rawValue
                 draft.totalPages = media.pageCount.map(String.init) ?? ""
@@ -222,22 +229,24 @@ struct MediaLogForm: View {
     }
 
     private func prepare() async {
-        guard case .idle = records else { return }
-        let libraryStatus = (try? await services.library())?.first { $0.mediaKey == media.mediaKey }?.status
+        guard case .idle = libraryState else { return }
         if media.mediaType == .tv { seriesState = try? await services.seriesState(media.route) }
         if needsRecords {
-            records = .loading
-            do { records = .loaded(try await services.stateSnapshot()) }
-            catch { records = .failed(error); failure = "Your saved progress couldn’t be loaded, so saving now would start a new record. Close and try again." }
+            libraryState = .loading
+            do { libraryState = .loaded(try await services.library()) }
+            catch {
+                libraryState = .failed(error)
+                failure = "Your saved progress couldn’t be loaded, so saving now would start a new record. Close and try again."
+            }
         } else {
-            records = .loaded(MosaicStateSnapshot())
+            libraryState = .loaded([])
         }
-        draft = Self.initialDraft(media: media, snapshot: records.value, libraryStatus: libraryStatus, seriesState: seriesState)
+        draft = Self.initialDraft(media: media, entry: libraryState.value?.first { $0.mediaKey == media.mediaKey }, seriesState: seriesState)
     }
 
     private func save() {
         // Never fall back to creating a new record when the existing one couldn't be read.
-        if needsRecords, case .failed = records { return }
+        if needsRecords, case .failed = libraryState { return }
         isSaving = true; failure = nil
         Task {
             do {

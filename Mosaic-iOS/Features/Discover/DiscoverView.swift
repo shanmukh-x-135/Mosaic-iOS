@@ -67,10 +67,10 @@ final class DiscoverViewModel {
 
     enum RecommendationState { case noSeeds, rows([Recommendations.Row]), nothingNew, failed }
 
-    func load(_ services: MosaicServices, force: Bool = false) async {
+    func load(_ services: MosaicServices, region: String?, force: Bool = false) async {
         guard force || feed.value == nil else { return }
         if feed.value == nil { feed = .loading }
-        do { feed = .loaded(try await services.discover()) }
+        do { feed = .loaded(try await services.discover(region)) }
         catch is CancellationError {}
         catch { if feed.value == nil { feed = .failed(error) } }
         await loadRecommendations(services)
@@ -156,8 +156,11 @@ final class DiscoverViewModel {
 
 struct DiscoverView: View {
     @Environment(\.mosaicServices) private var services
+    @Environment(SessionStore.self) private var session
     @State private var model = DiscoverViewModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var region: String? { session.currentUser?.profile?.watchRegion }
 
     var body: some View {
         MosaicScreen {
@@ -173,8 +176,11 @@ struct DiscoverView: View {
         }
         .navigationTitle("Discover")
         .toolbar { QuickLogToolbarItem() }
-        .task { await model.load(services) }
-        .refreshable { await model.load(services, force: true) }
+        .task { await model.load(services, region: region) }
+        .refreshable { await model.load(services, region: region, force: true) }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicProfileDidChange)) { _ in
+            Task { await model.load(services, region: region, force: true) }
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -187,7 +193,7 @@ struct DiscoverView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Loading discovery")
         case let .failed(error):
-            MosaicStateMessage(title: "Discovery is taking a breather", message: MosaicErrorCopy.message(for: error), systemImage: "sparkles", actionTitle: "Try again") { Task { await model.load(services, force: true) } }
+            MosaicStateMessage(title: "Discovery is taking a breather", message: MosaicErrorCopy.message(for: error), systemImage: "sparkles", actionTitle: "Try again") { Task { await model.load(services, region: region, force: true) } }
         case let .loaded(response):
             DiscoverFeed(response: response, model: model)
         }

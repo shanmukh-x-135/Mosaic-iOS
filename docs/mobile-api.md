@@ -38,7 +38,9 @@ backward-compatibly and the existing web API remains their source of truth.
 | Capability | Method and path | Response | Notes |
 | --- | --- | --- | --- |
 | Authenticated identity/profile | `GET /api/me` | `{ id, profile }` | `profile` is `null` only for a legacy account whose profile has not been created yet. |
+| Edit profile | `PATCH /api/me/profile` | `{ profile }` | Replaces display name, username, bio and avatar. See [Profile editing](#profile-editing-patch-apimeprofile). |
 | Current media / Continue | `GET /api/me/continue?limit=20` | `{ items: ContinueItem[] }` | `limit` is optional (1–100 when supplied). Without it, all active items are returned in Home order. |
+| Personal Series state | `GET /api/me/series-state?provider=&providerId=` | focused Series tracking projection | Authenticated; contains only one Series's status, rating, canonical episode watches, and season states. |
 | Library | `GET /api/me/library?type=&status=&sort=` | `{ items: LibraryEntry[] }` | Complete tile-ready tracked collection; all query parameters are optional. |
 | Activity/diary | `GET /api/me/activity?limit=50` | `{ items: ActivityEvent[] }` | `limit` is 1–100; returned events are newest first. |
 | Lists | `GET /api/me/lists` | `{ items: UserList[] }` | Cross-media list order is the item `position`. |
@@ -195,6 +197,8 @@ activity alone never creates a Library entry.
 | `userRating` | number or `null` | `null` means the user has not rated this item | Mosaic user rating: 0.5–5.0 inclusive, in 0.5-star increments. This is distinct from catalog `communityRating`. |
 | `isFavorite` | boolean | required | User's Library favorite flag. |
 | `updatedAt` | ISO-8601 string | required | Last Library state update; used by default ordering. |
+| `progressId` | string | omitted when there is no persisted record | The playthrough/reading row a game or book update must target (`playthroughId`/`readingId`). Series and movies never set it. |
+| `watchCount` | number | omitted when the movie has no logged watches | Logged movie watches for this title. Movies have no `progress` object, so this is their only progress signal. |
 | `progress` | progress object | omitted for movies and for books/games without a persisted reading/playthrough; present for series | Structured personal progress; never parse a display string. |
 
 Artwork URLs are already fully qualified and normalized. iOS must never append
@@ -219,13 +223,44 @@ presentation choices for the exact wire values above.
 | --- | --- | --- |
 | tv | `{ watchedEpisodes, totalEpisodes, percent, nextSeasonNumber?, nextEpisodeNumber? }` | `totalEpisodes` and `percent` are `null` when Mosaic lacks an aired, non-special denominator; this is unknown, not zero progress. |
 | book | `{ currentPage, totalPages, percent }` | Omitted if there is no persisted reading. Otherwise page fields are `null` when unknown; `percent` is `null` unless recorded directly or calculable from known pages. A real zero percent remains `0`. |
-| game | `{ playtimeMinutes, percent }` | Omitted if there is no persisted playthrough. Otherwise `playtimeMinutes` is a known non-negative integer (zero is valid); `percent` is `null` if no completion percentage was recorded. |
+| game | `{ playtimeMinutes, percent, platform? }` | Omitted if there is no persisted playthrough. Otherwise `playtimeMinutes` is a known non-negative integer (zero is valid); `percent` is `null` if no completion percentage was recorded; `platform` is omitted when none was chosen. |
 | movie | omitted | Mosaic has no resumable movie progress state. |
 
 Series watched counts and next episode coordinates use Mosaic's existing
 released-episode logic. Book and game progress are the most recently updated
 reading/playthrough for the Library item; status remains the authoritative
 Library status.
+
+### Profile editing (`PATCH /api/me/profile`)
+
+Replaces the signed-in user's editable profile. The response is
+`{ "profile": { id, username, displayName, bio, avatarUrl, watchRegion } }`,
+the same shape `GET /api/me` returns.
+
+```json
+{
+  "displayName": "Shan",
+  "username": "shan",
+  "bio": "Watching, playing and reading in one place." ,
+  "avatarUrl": "/brand/mosaic/avatars/orbit.svg"
+}
+```
+
+- `displayName` and `username` are required. `displayName` is trimmed and must
+  be 1–80 characters. `username` is trimmed, lowercased and must match
+  `/^[a-z0-9_]{3,30}$/`.
+- `bio` and `avatarUrl` are optional. Omit a key to leave it unchanged; send an
+  explicit `null` (or an empty string) to clear it. `bio` is at most 500
+  characters after trimming.
+- `avatarUrl` is either a Mosaic preset path
+  (`/brand/mosaic/avatars/<orbit|prism|eclipse|nebula|portal|aurora|monolith|mosaic>.svg`)
+  or a full `https://` image URL of at most 2048 characters.
+- Only `profiles` is updated. Supabase auth metadata is left to the web
+  gateway, so the two stores cannot drift from a native client.
+
+Failures use the shared envelope: `401 UNAUTHORIZED`, `400 VALIDATION_ERROR`
+(rules above), `409 CONFLICT` (username already taken), `404 NOT_FOUND` (a
+legacy account with no `profiles` row), and `500 INTERNAL_ERROR`.
 
 Example:
 
@@ -332,6 +367,26 @@ title-match, parse IDs as numbers, or substitute another provider.
 already normalized by Mosaic. `posterUrl` is the cover/poster for all four
 media types; `backdropUrl` is optional wide artwork. Native clients must never
 append TMDB, IGDB, or Google Books image base URLs.
+
+### Series season episodes
+
+`GET /api/catalog/{provider}/tv/{providerId}/season/{seasonNumber}` is the
+mobile-safe, public, on-demand episode contract. `provider`, `providerId`, and
+the integer `seasonNumber` are the complete opaque route identity. The route
+never returns raw provider payloads and must not be fanned out for every
+season from a Series detail screen.
+
+It returns `{ "episodes": CatalogEpisode[] }`, ordered by `episodeNumber`.
+Each record has required `id`, `seasonNumber`, `episodeNumber`, and `title`;
+`overview`, `stillUrl`, `airDate`, `runtimeMinutes`, `publicRating`, and
+`publicRatingCount` are omitted when the provider has no normalized value.
+Artwork URLs are fully qualified when present. A `400` uses the standard
+`VALIDATION_ERROR` envelope for an invalid identity; an upstream failure uses
+`PROVIDER_UNAVAILABLE` with `503`. Successful responses are cacheable for one
+hour and may be served stale while revalidating for one day. Native clients may
+cache by `(provider, providerId, seasonNumber)`, render a cached season
+immediately, and refresh only on explicit retry or targeted mutation
+invalidation.
 
 ### Cross-media search
 
@@ -448,6 +503,64 @@ Related, season, watch-provider, discover, theme, genre, and episode-rating
 routes remain web-facing ancillary APIs and are not part of this mobile
 Milestone 2 contract.
 
+## Mosaic AI assistant (`POST /api/me/assistant`)
+
+A read-only assistant over the caller's own records. It is web-only for now:
+iOS should not ship against it until production enablement is approved, but the
+contract below is designed so a native client needs no business logic of its own.
+The model key never leaves the server.
+
+**Auth and availability.** Cookie or Bearer, exactly like the other `/api/me/*`
+routes. The server-side kill switch (`MOSAIC_AI_ENABLED`, off by default) and the
+private-beta allowlist (`MOSAIC_AI_ALLOWED_USERS`) are checked before any model or
+data access.
+
+**Request** (`application/json`; unknown fields are rejected):
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `message` | string, 1–1000 chars | The question. |
+| `history` | `{ role: "user" \| "assistant", text }[]`, at most 8, text ≤ 4000 | Plain text of earlier turns (render `[[rN]]` tokens to titles first). Treated as unverified; refs are never carried over. |
+| `about` | provider key, optional | e.g. `tmdb:tv:1399`, for "ask about this title". |
+
+**Response.** `200 application/x-ndjson`: one JSON event per line.
+
+| Event | Fields | Meaning |
+| --- | --- | --- |
+| `status` | `tool`, `label` | A read-only tool is running ("Checking your library"). |
+| `text` | `delta` | Answer text. Titles appear only as `[[rN]]` tokens. |
+| `refs` | `refs[]` | Titles the tools returned; render tokens with these. |
+| `scope` | `items[{ tool, summary }]` | What data was consulted ("Library · watchlist · movies · 14 titles"). |
+| `done` | `truncated`, `cited[]`, `usage` | Final. `cited` lists the ref ids the answer mentions, in order. |
+| `error` | `code`, `message`, `retryable` | A failure after streaming started. |
+
+A **ref** is `{ id, origin, media: { provider, mediaType, providerId, title, posterUrl?, releaseYear? }, facts?, reason?, seed? }`.
+`origin: "your_mosaic"` is a title in the user's records, and its `facts`
+(status, userRating, favourite) are copied by the server from those records.
+`origin: "catalog"` is a suggestion, never a claim about the user; `reason` is
+server-written and `seed` points to the ref it came from. Build routes from the
+identity tuple; the server never sends URLs. Unknown or invented tokens are
+removed by the server before they reach the client.
+
+**Errors before streaming** use the standard envelope:
+
+| Status | Code | When | Retry? |
+| --- | --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | Invalid body, unknown field, bad `about` | No |
+| 401 | `UNAUTHORIZED` | No valid session or token | After sign-in |
+| 403 | `FORBIDDEN` | Not in the private beta | No |
+| 429 | `RATE_LIMITED` | `x-mosaic-limit-scope: user` (asking too quickly) or `service` (free model capacity used); `Retry-After` in seconds | After `Retry-After` |
+| 503 | `ASSISTANT_UNAVAILABLE` | Disabled, not configured, model unavailable, or upstream failure | Yes, later |
+| 500 | `INTERNAL_ERROR` | The user's data could not be loaded | Yes |
+
+**Data rules the answers follow.** Personal ratings are the user's 0.5–5 values,
+never community scores. Movie and episode dates are real events. Game and book
+dates are the record's last update (`dateKind: "last_updated"`), never sessions,
+and no game completion or book finish date is stated. When a title has several
+playthrough or reading records, progress comes from the most recent and records
+are never added together. Reviews, notes, list descriptions and catalog
+descriptions are never sent to the model.
+
 ## Not ready for a native client
 
 The following route families have not yet been normalized to the private API
@@ -472,6 +585,7 @@ native-ready while preserving their existing web behavior.
 | Current/Continue | `src/lib/current-media/`, `src/lib/tv/series-progress.ts` | `GET /api/me/continue` |
 | Library/lists | `src/lib/persistence/` | `GET /api/me/library`, `GET /api/me/lists` |
 | Activity/stats | `src/lib/activity/`, `src/lib/analytics/` | `GET /api/me/activity`, `GET /api/me/stats` |
+| Mosaic AI | `src/lib/assistant/` (tools, loop, OpenRouter adapter) | `POST /api/me/assistant` |
 
 `src/lib/services/mosaic.ts` is the server-only service boundary shared by
 the normalized API routes. React components continue to use their current

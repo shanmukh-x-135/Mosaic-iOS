@@ -15,11 +15,16 @@ nonisolated struct LibraryItemDTO: Identifiable, Decodable, Hashable, Sendable {
     let userRating: Double?
     let isFavorite: Bool
     let updatedAt: Date
+    /// The persisted playthrough/reading this entry reports progress for, when
+    /// one exists. Logging must update this record instead of starting a new one.
+    let progressID: String?
+    /// Number of logged movie watches. Movies have no `progress` object.
+    let watchCount: Int?
     let progress: LibraryProgressDTO?
 
     private enum CodingKeys: String, CodingKey {
         case id, mediaType, provider, providerID = "providerId", title, releaseYear, status, userRating, isFavorite, updatedAt, progress
-        case posterURL = "posterUrl", backdropURL = "backdropUrl"
+        case posterURL = "posterUrl", backdropURL = "backdropUrl", progressID = "progressId", watchCount
     }
 
     var route: MediaDetailRoute { MediaDetailRoute(provider: provider, mediaType: mediaType, providerID: providerID) }
@@ -32,6 +37,10 @@ nonisolated struct LibraryItemDTO: Identifiable, Decodable, Hashable, Sendable {
     /// One honest line of progress per medium, built only from stored fields
     /// (`progressFor` in the web `library-card.tsx`).
     var progressLine: (text: String, fraction: Double?)? {
+        if mediaType == .movie {
+            guard let watchCount, watchCount > 0 else { return nil }
+            return ("\(watchCount) \(watchCount == 1 ? "watch" : "watches") logged", nil)
+        }
         guard let progress else { return nil }
         let fraction = progress.percent.flatMap { $0 > 0 ? min($0 / 100, 1) : nil }
         switch mediaType {
@@ -64,6 +73,8 @@ nonisolated struct LibraryProgressDTO: Decodable, Hashable, Sendable {
     let percent: Double?
     let nextSeasonNumber: Int?
     let nextEpisodeNumber: Int?
+    /// The platform recorded on a game playthrough.
+    let platform: String?
 }
 
 nonisolated enum LibraryMediaFilter: String, CaseIterable, Identifiable, Sendable {

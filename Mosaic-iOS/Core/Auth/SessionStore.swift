@@ -70,6 +70,19 @@ final class SessionStore {
         return try await client.auth.session.accessToken
     }
 
+    /// Applies a profile the server just confirmed, so every screen reading
+    /// `currentUser.profile` reflects the edit without a relaunch.
+    func apply(profile: Profile) {
+        guard let currentUser else { return }
+        self.currentUser = CurrentUser(id: currentUser.id, profile: profile)
+    }
+
+    /// Re-reads `GET /api/me` after a profile-scoped mutation.
+    func refreshCurrentUser() async {
+        guard let token = try? await currentAccessToken() else { return }
+        currentUser = try? await api.request("/api/me", token: token, as: CurrentUser.self)
+    }
+
     private func completeAuthentication(_ session: Session) async {
         guard !session.accessToken.isEmpty else {
             state = .error(OAuthFailure.completionFailed.message)

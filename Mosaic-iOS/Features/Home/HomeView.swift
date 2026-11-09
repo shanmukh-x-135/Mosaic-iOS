@@ -16,6 +16,7 @@ private struct HomeScreen: View {
     @State private var discovery = Loadable<CatalogDiscoverResponse>.idle
     @Environment(LibraryStore.self) private var library
     @Environment(MosaicRouter.self) private var router
+    @Environment(SessionStore.self) private var session
 
     init(services: MosaicServices) {
         self.services = services
@@ -51,6 +52,9 @@ private struct HomeScreen: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in
             model.retry(); Task { await loadActivity() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicProfileDidChange)) { _ in
+            discovery = .idle; Task { await loadDiscovery() }
         }
     }
 
@@ -162,7 +166,7 @@ private struct HomeScreen: View {
 
     private func loadDiscovery() async {
         if discovery.value == nil { discovery = .loading }
-        do { discovery = .loaded(try await services.discover()) }
+        do { discovery = .loaded(try await services.discover(session.currentUser?.profile?.watchRegion)) }
         catch is CancellationError {}
         catch { if discovery.value == nil { discovery = .failed(error) } }
     }

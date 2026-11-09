@@ -1,12 +1,13 @@
 # Mosaic iOS — Phase 2 alignment audit
 
-Status: **Phase 2 implemented and committed locally; awaiting review** (see
-“Outcome” at the end). Branch: `feat/ios-redesign-alignment`, created from `main` at
-`8e0546d`.
+Status: **Phase 2 and the V1 completion pass implemented; awaiting device QA and
+TestFlight upload.** Phase 2 is committed on `main` (`cdf2023`). The V1
+completion pass (§9, 2026-11-10) is uncommitted at the time of writing; see
+`docs/V1_RELEASE_STATUS.md` for the current release state.
 
-Web reference: `~/Documents/Tracking App` at `bc49972` (`main`, equal to
-`origin/main`) — “fix: restore Continue for series without stored episode totals
-and compact Discover genres”. The web repository was read, never modified.
+Web reference: `~/Documents/Tracking App` at `f4cc9cb` (`main`) plus the V1
+profile/library changes described in §9. The web repository is only modified by
+the coordinated backend change (§9); the UI is unchanged.
 
 ## 1. Current architecture
 
@@ -121,19 +122,21 @@ unknown progress.
 5. Lists (read-only), Profile, Activity, Settings.
 6. Search consolidation, accessibility pass, fixtures and screenshots.
 
-## 7. Backend gaps (not changed in this phase)
+## 7. Backend gaps (resolved in the V1 pass)
 
-- No mobile contract exposes playthrough/reading ids; iOS reads them from the
-  documented web-compatible `GET /api/me/state` snapshot. A concise
-  `progress` id in `LibraryEntry` would be a cheaper, separately reviewable
-  addition.
-- `LibraryEntry` has no movie watch count, so iOS cannot show “N watches
-  logged” as the web card does.
-- Discover genres, themes and related titles use public ancillary routes
-  (`/api/catalog/genres|themes|…/related`) that `mobile-api.md` lists as not
-  yet normalized for mobile; their errors still use the legacy string shape.
-- Watch region (`settings.watchRegion`) has no read endpoint besides the full
-  snapshot; settings editing is deferred.
+- **Resolved:** `LibraryEntry` now carries `progressId` for games and books, so
+  logging targets the persisted playthrough/reading without reading
+  `GET /api/me/state`. It also carries `watchCount` for movies and
+  `progress.platform` for games.
+- **Resolved:** `PATCH /api/me/profile` replaces display name, username, bio and
+  avatar, so profile editing exists on iOS instead of only on the web.
+- **Resolved:** watch region is read from `GET /api/me` and written with
+  `POST /api/me/state` (`settings.watchRegion`); Discover sends it as
+  `?region=XX`.
+- **Open (unchanged):** Discover genres, themes and related titles still use
+  the public ancillary routes whose errors keep the legacy string shape.
+- **Deferred to V1.1:** list/review CRUD, movie edit/delete, richer stats,
+  iPad/visionOS/Mac, external TestFlight and CI.
 
 ## 8. Outcome (2026-10-12)
 
@@ -193,14 +196,43 @@ unknown progress.
 
 ### Known limitations and items needing approval
 
-- Backend gaps in §7 are unchanged; no API, schema or production change was made.
-- iOS reads playthrough/reading ids from the full `GET /api/me/state`
-  snapshot. It picks the most recently updated record; the web picks the
-  first one in its array. A per-entry id in `LibraryEntry` would remove both
-  the payload cost and the ambiguity (needs backend approval).
 - Lists are read-only; creating, editing, reordering and sharing stay on the web.
 - Avatar presets that are SVGs fall back to the gradient avatar (no SVG
   rendering on iOS).
-- Watch region is not read, so Discover uses the server’s fallback region.
 - `mutedText` is `#8a93a0` instead of the web’s `#77808d`, to keep 4.5:1
   contrast on iOS surfaces.
+- §9 resolves the playthrough-id, watch-count and watch-region gaps; the
+  remaining backend item is the legacy error shape on auxiliary catalog routes.
+
+## 9. V1 completion pass (2026-11-10)
+
+Definition of done: **internal TestFlight V1**, iPhone only, portrait only.
+
+### iOS changes
+
+| Area | Result |
+| --- | --- |
+| Library contract | `LibraryItemDTO` decodes `progressId`, `watchCount`, and `progress.platform`; movie cards show “N watches logged”. |
+| Logging | `MediaLogForm` reads `GET /api/me/library` instead of the full state snapshot, prefills games/books from the entry’s `progressId`/`progress`, and still refuses to save if the library read failed. |
+| Profile | New `EditProfileView` (display name, username, bio, Mosaic avatar presets or an https image) sends `PATCH /api/me/profile`; `ProfileView` and `SettingsView` open it. `Profile` decodes `bio` and `watchRegion` and keeps the raw avatar value. |
+| Watch region | `SettingsView` → Watch region list writes `settings.watchRegion`, refreshes `/api/me` and posts `mosaicProfileDidChange`; Home and Discover reload with `?region=XX`. |
+| Networking | `MosaicAPIClient` gained a generic `send(method:path:body:token:as:)`; `DetailMutation` now encodes the non-media `settings.watchRegion` command. |
+| Release | `TARGETED_DEVICE_FAMILY = 1`, portrait-only `Info.plist` keys (launch screen, scene manifest, category, `ITSAppUsesNonExemptEncryption=false`), `PrivacyInfo.xcprivacy`, `.gitignore`, `README.md`, `scripts/test.sh`, `scripts/archive.sh`. `xcuserdata` is no longer tracked. |
+
+### Web changes (coordinated)
+
+- New `src/lib/profile/{types,validation,service}.ts` and
+  `src/lib/api/profile-contract.ts`; `PATCH /api/me/profile` at
+  `src/app/api/me/profile/route.ts`.
+- `src/lib/library/projection.ts` adds `progressId`, `watchCount` and game
+  `platform`; `docs/mobile-api.md` documents all of it.
+- Verified on the web side: `npm run typecheck` clean, `npm test` 286/286.
+
+### Verification
+
+- iOS app build: **BUILD SUCCEEDED** (`generic/platform=iOS`, code signing
+  disabled for the check).
+- iOS test target: **TEST BUILD SUCCEEDED** (`build-for-testing`).
+- Unit tests did **not** run in this environment: no simulator runtime is
+  installed. Run `scripts/test.sh` after installing one.
+- Device QA is outstanding; see `docs/V1_RELEASE_STATUS.md`.

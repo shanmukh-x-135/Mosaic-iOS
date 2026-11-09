@@ -1,5 +1,9 @@
 # Mosaic iOS emergency layout and Search QA
 
+> **Status: NOT RUN for V1.** This checklist was written for the pre-Phase-2
+> build (2026-09-30). It has not been executed against the current code. Run the
+> whole list on the exact TestFlight candidate before promoting the build.
+
 Run this checklist on a signed-in iPhone after installing a Debug build. Do not use
 iPhone Mirroring. The app must be tested with normal Dynamic Type and portrait
 orientation on both a normal-width iPhone and a larger iPhone when available.

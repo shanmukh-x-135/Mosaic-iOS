@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var stats = Loadable<ProfileStatsDTO>.idle
     @State private var activity = Loadable<[ProfileActivity]>.idle
     @State private var lists = Loadable<[UserList]>.idle
+    @State private var editingProfile = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -32,7 +33,14 @@ struct ProfileView: View {
             .padding(.horizontal, MosaicLayout.pageHorizontal)
         }
         .navigationTitle("Profile")
-        .toolbar { QuickLogToolbarItem() }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Edit") { editingProfile = true }
+                    .accessibilityHint("Change your name, username, bio and photo")
+            }
+            QuickLogToolbarItem()
+        }
+        .sheet(isPresented: $editingProfile) { NavigationStack { EditProfileView() } }
         .task { await load() }
         .refreshable { await load(force: true) }
         .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await load(force: true) } }
@@ -151,6 +159,9 @@ private struct ProfileIdentity: View {
                 Text(profile?.displayName ?? visibleUsername ?? "Your profile").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).lineLimit(2).accessibilityAddTraits(.isHeader)
                 // Generated `user_…` handles are placeholders, not identities.
                 if let visibleUsername { Text("@\(visibleUsername)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
+                if let bio = profile?.bio, !bio.isEmpty {
+                    Text(bio).font(.footnote).foregroundStyle(MosaicColor.secondaryText).lineLimit(3)
+                }
             }
             Spacer(minLength: 0)
         }

@@ -17,9 +17,11 @@ nonisolated struct MosaicServices {
     /// Applies one validated command. Callers refresh their own projections when
     /// `mosaicStateDidChange` is posted after success.
     var mutate: @MainActor (_ mutation: DetailMutation) async throws -> Void
+    /// Replaces the signed-in user's editable profile (`PATCH /api/me/profile`).
+    var updateProfile: @MainActor (_ update: ProfileUpdateRequest) async throws -> Profile
 
     // Public catalog.
-    var discover: @MainActor () async throws -> CatalogDiscoverResponse
+    var discover: @MainActor (_ region: String?) async throws -> CatalogDiscoverResponse
     var genre: @MainActor (_ type: CatalogMediaType, _ genreID: Int) async throws -> CatalogSearchResponse
     var theme: @MainActor (_ themeID: String, _ type: CatalogMediaType?) async throws -> CatalogSearchResponse
     var related: @MainActor (_ route: MediaDetailRoute) async throws -> CatalogSearchResponse
@@ -49,10 +51,20 @@ extension MosaicServices {
             },
             mutate: { mutation in
                 try await client.mutate(path: "/api/me/state", body: mutation, token: try await session.currentAccessToken())
-                if mutation.affectedRoute.mediaType == .tv { await SeriesPersonalStateCache.shared.invalidate(mutation.affectedRoute) }
+                if let route = mutation.affectedRoute, route.mediaType == .tv { await SeriesPersonalStateCache.shared.invalidate(route) }
+                // Region lives on the profile, not in the media state snapshot.
+                if mutation.type == "settings.watchRegion" { await session.refreshCurrentUser(); MosaicStateInvalidation.postProfileChange() }
                 MosaicStateInvalidation.post()
             },
-            discover: { try await client.publicRequest(path: "/api/catalog/discover", as: CatalogDiscoverResponse.self) },
+            updateProfile: { update in
+                let response: ProfileUpdateResponse = try await client.send(method: "PATCH", path: "/api/me/profile", body: update, token: try await session.currentAccessToken())
+                await session.apply(profile: response.profile)
+                MosaicStateInvalidation.postProfileChange()
+                return response.profile
+            },
+            discover: { region in
+                try await client.publicRequest(path: "/api/catalog/discover", queryItems: region.map { [URLQueryItem(name: "region", value: $0)] } ?? [], as: CatalogDiscoverResponse.self)
+            },
             genre: { type, id in
                 try await client.publicRequest(path: "/api/catalog/genres", queryItems: [URLQueryItem(name: "type", value: type.rawValue), URLQueryItem(name: "genre", value: String(id))], as: CatalogSearchResponse.self)
             },
@@ -90,7 +102,8 @@ extension MosaicServices {
         return MosaicServices(
             continueItems: { throw failure }, library: { throw failure }, activity: { _ in throw failure }, stats: { throw failure },
             lists: { throw failure }, stateSnapshot: { throw failure }, seriesState: { _ in throw failure }, mutate: { _ in throw failure },
-            discover: { throw failure }, genre: { _, _ in throw failure }, theme: { _, _ in throw failure }, related: { _ in throw failure },
+            updateProfile: { _ in throw failure },
+            discover: { _ in throw failure }, genre: { _, _ in throw failure }, theme: { _, _ in throw failure }, related: { _ in throw failure },
             search: { _, _ in throw failure }, detail: { _ in throw failure }, season: { _ in throw failure }
         )
     }()

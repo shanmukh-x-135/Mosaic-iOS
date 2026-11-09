@@ -83,18 +83,14 @@ final class MosaicAlignmentTests: XCTestCase {
 
     // MARK: Game and book progress target the existing record
 
-    /// Regression: an update without `playthroughId`/`readingId` inserts a new row.
-    func testGameUpdateTargetsTheMostRecentPlaythroughAndKeepsItsValues() throws {
+    /// Regression: an update without `playthroughId`/`readingId` inserts a new row,
+    /// so the form must prefill them from the Library entry.
+    func testGameUpdateTargetsLibraryProgressRecordAndKeepsItsValues() throws {
         let game = media(.game)
-        let snapshot = try JSONDecoder.mosaic.decode(MosaicStateSnapshot.self, from: Data("""
-        {"gamePlaythroughs":[
-          {"id":"old","media":\(json(game)),"status":"completed","playtimeMinutes":600,"updatedAt":"2025-01-01T00:00:00.000Z"},
-          {"id":"current","media":\(json(game)),"status":"playing","platform":"PC","playtimeMinutes":245,"progressPercent":40,"rating":4,"updatedAt":"2026-10-01T00:00:00.000Z"},
-          {"broken":true}
-        ],"library":[],"ratings":[],"movieWatches":[],"episodeWatches":[],"bookReadings":[]}
-        """.utf8))
-        XCTAssertEqual(snapshot.gamePlaythroughs.count, 2, "A malformed row is skipped, not fatal")
-        let draft = MediaLogForm.initialDraft(media: game, snapshot: snapshot, libraryStatus: "playing", seriesState: nil)
+        let entry = try libraryEntry("""
+        {"id":"tmdb:game:1","mediaType":"game","provider":"tmdb","providerId":"1","title":"Title","status":"playing","userRating":4,"isFavorite":false,"updatedAt":"2026-10-01T00:00:00.000Z","progressId":"current","progress":{"playtimeMinutes":245,"percent":40,"platform":"PC"}}
+        """)
+        let draft = MediaLogForm.initialDraft(media: game, entry: entry, seriesState: nil)
         XCTAssertEqual(draft.playthroughID, "current")
         XCTAssertEqual(draft.platform, "PC")
         XCTAssertEqual(draft.playtimeHours, "4.08")
@@ -108,7 +104,10 @@ final class MosaicAlignmentTests: XCTestCase {
     }
 
     func testFirstGameUpdateStartsANewPlaythroughFromLibraryStatus() throws {
-        let draft = MediaLogForm.initialDraft(media: media(.game), snapshot: MosaicStateSnapshot(), libraryStatus: "backlog", seriesState: nil)
+        let entry = try libraryEntry("""
+        {"id":"tmdb:game:1","mediaType":"game","provider":"tmdb","providerId":"1","title":"Title","status":"backlog","userRating":null,"isFavorite":false,"updatedAt":"2026-10-01T00:00:00.000Z"}
+        """)
+        let draft = MediaLogForm.initialDraft(media: media(.game), entry: entry, seriesState: nil)
         XCTAssertNil(draft.playthroughID)
         XCTAssertEqual(draft.status, "backlog")
         let payload = try encode(MediaLogForm.mutation(for: draft, media: media(.game)))
@@ -119,10 +118,10 @@ final class MosaicAlignmentTests: XCTestCase {
 
     func testBookUpdateTargetsTheExistingReadingAndValidatesPages() throws {
         let book = media(.book)
-        let snapshot = try JSONDecoder.mosaic.decode(MosaicStateSnapshot.self, from: Data("""
-        {"bookReadings":[{"id":"reading-1","media":\(json(book)),"status":"reading","currentPage":96,"totalPages":304,"progressPercent":32,"updatedAt":"2026-10-09T09:00:00.000Z"}]}
-        """.utf8))
-        var draft = MediaLogForm.initialDraft(media: book, snapshot: snapshot, libraryStatus: "reading", seriesState: nil)
+        let entry = try libraryEntry("""
+        {"id":"tmdb:book:1","mediaType":"book","provider":"tmdb","providerId":"1","title":"Title","status":"reading","userRating":null,"isFavorite":false,"updatedAt":"2026-10-09T09:00:00.000Z","progressId":"reading-1","progress":{"currentPage":96,"totalPages":304,"percent":32}}
+        """)
+        var draft = MediaLogForm.initialDraft(media: book, entry: entry, seriesState: nil)
         XCTAssertEqual(draft.readingID, "reading-1")
         XCTAssertEqual(draft.currentPage, "96")
         XCTAssertEqual(draft.totalPages, "304")
@@ -138,7 +137,7 @@ final class MosaicAlignmentTests: XCTestCase {
     func testEpisodeFormStartsAtTheNextUnwatchedEpisode() throws {
         let series = try JSONDecoder.mosaic.decode(CatalogMedia.self, from: Data(#"{"provider":"tmdb","providerId":"1","mediaType":"tv","title":"Show","genres":[],"seasonNumbers":[0,1,2],"eligibleEpisodeCounts":{"0":3,"1":2,"2":5}}"#.utf8))
         let state = try JSONDecoder.mosaic.decode(SeriesPersonalState.self, from: Data(#"{"status":"watching","isFavorite":false,"userRating":null,"episodes":[{"seasonNumber":1,"episodeNumber":1,"watchedAt":"2026-01-01T00:00:00.000Z","rating":null},{"seasonNumber":1,"episodeNumber":2,"watchedAt":"2026-01-02T00:00:00.000Z","rating":null}],"seasons":[]}"#.utf8))
-        let draft = MediaLogForm.initialDraft(media: series, snapshot: nil, libraryStatus: "watching", seriesState: state)
+        let draft = MediaLogForm.initialDraft(media: series, entry: nil, seriesState: state)
         XCTAssertEqual(draft.season, 2, "Specials (season 0) are skipped")
         XCTAssertEqual(draft.episode, 1)
     }
@@ -226,6 +225,83 @@ final class MosaicAlignmentTests: XCTestCase {
         XCTAssertEqual(mutations.map(\.type), ["library.upsert"])
     }
 
+    // MARK: Library progress identity and watch counts
+
+    func testLibraryEntryDecodesProgressIdWatchCountAndPlatform() throws {
+        let game = try libraryEntry(#"{"id":"igdb:game:7","mediaType":"game","provider":"igdb","providerId":"7","title":"Hades","status":"playing","userRating":null,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z","progressId":"play-1","progress":{"playtimeMinutes":245,"percent":40,"platform":"PC"}}"#)
+        XCTAssertEqual(game.progressID, "play-1")
+        XCTAssertEqual(game.progress?.platform, "PC")
+        XCTAssertEqual(game.progressLine?.text, "40% · 4h 5m recorded")
+
+        let movie = try libraryEntry(#"{"id":"tmdb:movie:1","mediaType":"movie","provider":"tmdb","providerId":"1","title":"Arrival","status":"watched","userRating":4,"isFavorite":false,"updatedAt":"2026-09-19T10:00:00.000Z","watchCount":2}"#)
+        XCTAssertEqual(movie.watchCount, 2)
+        XCTAssertEqual(movie.progressLine?.text, "2 watches logged")
+        XCTAssertNil(movie.progressLine?.fraction, "There is no resumable movie progress to draw")
+    }
+
+    func testMovieWatchCountIsHonestForOneZeroAndMissing() throws {
+        func line(_ watchCount: String) throws -> String? {
+            let extra = watchCount.isEmpty ? "" : ",\"watchCount\":\(watchCount)"
+            let json = "{\"id\":\"tmdb:movie:1\",\"mediaType\":\"movie\",\"provider\":\"tmdb\",\"providerId\":\"1\",\"title\":\"Arrival\",\"status\":\"watched\",\"userRating\":null,\"isFavorite\":false,\"updatedAt\":\"2026-09-19T10:00:00.000Z\"\(extra)}"
+            return try libraryEntry(json).progressLine?.text
+        }
+        XCTAssertEqual(try line("1"), "1 watch logged")
+        XCTAssertNil(try line("0"))
+        XCTAssertNil(try line(""))
+    }
+
+    // MARK: Profile
+
+    func testProfileDecodesBioRegionAndRelativeAvatar() throws {
+        let user = try JSONDecoder.mosaic.decode(CurrentUser.self, from: Data(#"{"id":"u","profile":{"displayName":"Name","username":"name","avatarUrl":"/brand/mosaic/avatars/orbit.svg","bio":"Hello","watchRegion":"IN"}}"#.utf8))
+        XCTAssertEqual(user.profile?.bio, "Hello")
+        XCTAssertEqual(user.profile?.watchRegion, "IN")
+        XCTAssertEqual(user.profile?.avatar, "/brand/mosaic/avatars/orbit.svg")
+        XCTAssertNil(user.profile?.avatarURL?.scheme, "Preset paths stay relative to the web origin")
+        XCTAssertEqual(AvatarPreset.name(for: user.profile?.avatar), "Orbit")
+    }
+
+    func testProfileUpdateSendsExplicitNullsToClearOptionalFields() throws {
+        let data = try JSONEncoder().encode(ProfileUpdateRequest(displayName: "Name", username: "name", bio: nil, avatar: nil))
+        let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(payload["displayName"] as? String, "Name")
+        XCTAssertEqual(payload["username"] as? String, "name")
+        XCTAssertTrue(payload.keys.contains("bio"))
+        XCTAssertTrue(payload["bio"] is NSNull)
+        XCTAssertTrue(payload.keys.contains("avatarUrl"))
+        XCTAssertTrue(payload["avatarUrl"] is NSNull)
+    }
+
+    func testProfileValidationMirrorsServerRules() {
+        func draft(name: String = "Name", username: String = "name", bio: String = "", avatar: String = "") -> EditProfileView.Draft {
+            .init(displayName: name, username: username, bio: bio, avatar: avatar)
+        }
+        XCTAssertNil(EditProfileView.validate(draft()))
+        XCTAssertNil(EditProfileView.validate(draft(username: "a_b1", avatar: "/brand/mosaic/avatars/orbit.svg")))
+        XCTAssertNil(EditProfileView.validate(draft(avatar: "https://example.com/me.jpg")))
+        XCTAssertNotNil(EditProfileView.validate(draft(name: "  ")))
+        XCTAssertNotNil(EditProfileView.validate(draft(name: String(repeating: "a", count: 81))))
+        XCTAssertNotNil(EditProfileView.validate(draft(username: "ab")))
+        XCTAssertNotNil(EditProfileView.validate(draft(username: "Name")))
+        XCTAssertNotNil(EditProfileView.validate(draft(bio: String(repeating: "a", count: 501))))
+        XCTAssertNotNil(EditProfileView.validate(draft(avatar: "http://example.com/me.jpg")))
+        XCTAssertNotNil(EditProfileView.validate(draft(avatar: "not a url")))
+    }
+
+    // MARK: Watch region
+
+    func testWatchRegionMutationIsNotMediaScoped() throws {
+        let payload = try encode(.watchRegion("IN"))
+        XCTAssertEqual(payload["type"] as? String, "settings.watchRegion")
+        XCTAssertEqual(payload["value"] as? String, "IN")
+        XCTAssertNil(payload["media"])
+        let cleared = try encode(.watchRegion(nil))
+        XCTAssertTrue(cleared.keys.contains("value"))
+        XCTAssertTrue(cleared["value"] is NSNull)
+        XCTAssertEqual(WatchRegion.label(for: "IN"), "India (IN)")
+        XCTAssertEqual(WatchRegion.label(for: nil), "Not set")
+    }
+
     // MARK: Helpers
 
     private func media(_ type: CatalogMediaType, id: String = "1") -> CatalogMedia {
@@ -233,6 +309,7 @@ final class MosaicAlignmentTests: XCTestCase {
         return try! catalog(#"{"provider":"tmdb","providerId":"\#(id)","mediaType":"\#(type.rawValue)","title":"Title","genres":[]\#(extra)}"#)
     }
     private func catalog(_ json: String) throws -> CatalogMedia { try JSONDecoder.mosaic.decode(CatalogMedia.self, from: Data(json.utf8)) }
+    private func libraryEntry(_ json: String) throws -> LibraryItemDTO { try JSONDecoder.mosaic.decode(LibraryItemDTO.self, from: Data(json.utf8)) }
     private func json(_ media: CatalogMedia) -> String { String(decoding: try! JSONEncoder().encode(media), as: UTF8.self) }
     private func encode(_ mutation: DetailMutation) throws -> [String: Any] {
         try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(mutation)) as? [String: Any])

@@ -6,7 +6,7 @@ import Foundation
 /// schema requires an explicit `null` (`rating.set` clearing a rating).
 nonisolated struct DetailMutation: Encodable, Equatable {
     let type: String
-    let media: CatalogMedia
+    let media: CatalogMedia?
     var series: CatalogMedia?
     var status: String?
     var state: String?
@@ -14,6 +14,7 @@ nonisolated struct DetailMutation: Encodable, Equatable {
     var isFavorite: Bool?
     var onlyIfUntracked: Bool?
     var value: Double?
+    var region: String?
     var rating: Double?
     var watchedAt: String?
     var isRewatch: Bool?
@@ -33,18 +34,27 @@ nonisolated struct DetailMutation: Encodable, Equatable {
         case type, media, series, status, state, provenance, isFavorite, onlyIfUntracked, value, rating, watchedAt, isRewatch, review
         case seasonNumber, episodeNumber, episodeTitle, playthroughID = "playthroughId", readingID = "readingId", platform, playtimeMinutes, progressPercent, currentPage, totalPages
     }
+    /// `settings.watchRegion` shares no media identity and has a string `value`.
+    private enum RegionCodingKeys: String, CodingKey { case type, value }
 
     func encode(to encoder: Encoder) throws {
+        if type == "settings.watchRegion" {
+            var container = encoder.container(keyedBy: RegionCodingKeys.self)
+            try container.encode(type, forKey: .type)
+            try container.encode(region, forKey: .value)
+            return
+        }
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
-        try container.encode(media, forKey: .media)
+        try container.encodeIfPresent(media, forKey: .media)
         try container.encodeIfPresent(series, forKey: .series)
         try container.encodeIfPresent(status, forKey: .status)
         try container.encodeIfPresent(state, forKey: .state)
         try container.encodeIfPresent(provenance, forKey: .provenance)
         try container.encodeIfPresent(isFavorite, forKey: .isFavorite)
         try container.encodeIfPresent(onlyIfUntracked, forKey: .onlyIfUntracked)
-        if type == "rating.set" { try container.encode(value, forKey: .value) } else { try container.encodeIfPresent(value, forKey: .value) }
+        if type == "rating.set" { try container.encode(value, forKey: .value) }
+        else { try container.encodeIfPresent(value, forKey: .value) }
         try container.encodeIfPresent(rating, forKey: .rating)
         try container.encodeIfPresent(watchedAt, forKey: .watchedAt)
         try container.encodeIfPresent(isRewatch, forKey: .isRewatch)
@@ -61,10 +71,15 @@ nonisolated struct DetailMutation: Encodable, Equatable {
         try container.encodeIfPresent(totalPages, forKey: .totalPages)
     }
 
-    private init(type: String, media: CatalogMedia) { self.type = type; self.media = media }
+    private init(type: String, media: CatalogMedia?) { self.type = type; self.media = media }
 
     /// The identity whose personal state this command changes.
-    var affectedRoute: MediaDetailRoute { (series ?? media).route }
+    var affectedRoute: MediaDetailRoute? { (series ?? media)?.route }
+
+    /// `settings.watchRegion` is not media-scoped; it only carries the region.
+    static func watchRegion(_ region: String?) -> Self {
+        with(.init(type: "settings.watchRegion", media: nil)) { $0.region = region }
+    }
 
     static func rating(_ media: CatalogMedia, _ value: Double?) -> Self { with(.init(type: "rating.set", media: media)) { $0.value = value } }
 

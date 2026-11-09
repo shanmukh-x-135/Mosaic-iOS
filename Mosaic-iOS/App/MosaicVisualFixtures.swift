@@ -57,9 +57,9 @@ nonisolated enum MosaicVisualFixtures {
     static let library: [LibraryItemDTO] = decode(#"""
     {"items":[
      {"id":"tmdb:tv:76331","mediaType":"tv","provider":"tmdb","providerId":"76331","title":"Succession","posterUrl":"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg","backdropUrl":"https://image.tmdb.org/t/p/w1280/d87JXX3DLkRJMfm5StCmmnmhHuX.jpg","releaseYear":2018,"status":"watching","userRating":4.5,"isFavorite":true,"updatedAt":"2026-10-11T20:00:00.000Z","progress":{"watchedEpisodes":13,"totalEpisodes":39,"percent":33,"nextSeasonNumber":2,"nextEpisodeNumber":4}},
-     {"id":"igdb:game:113112","mediaType":"game","provider":"igdb","providerId":"113112","title":"Hades II","releaseYear":2025,"status":"playing","userRating":null,"isFavorite":false,"updatedAt":"2026-10-10T20:00:00.000Z","progress":{"playtimeMinutes":245,"percent":null}},
-     {"id":"googlebooks:book:volume-42","mediaType":"book","provider":"googlebooks","providerId":"volume-42","title":"The Left Hand of Darkness","releaseYear":1969,"status":"reading","userRating":null,"isFavorite":true,"updatedAt":"2026-10-09T09:00:00.000Z","progress":{"currentPage":96,"totalPages":304,"percent":32}},
-     {"id":"tmdb:movie:1248832","mediaType":"movie","provider":"tmdb","providerId":"1248832","title":"Digger","posterUrl":"https://image.tmdb.org/t/p/w500/1ATXKrIPJyKNwnJ6lcG088Sa6zi.jpg","releaseYear":2026,"status":"watched","userRating":4,"isFavorite":false,"updatedAt":"2026-10-08T10:00:00.000Z"},
+     {"id":"igdb:game:113112","mediaType":"game","provider":"igdb","providerId":"113112","title":"Hades II","releaseYear":2025,"status":"playing","userRating":null,"isFavorite":false,"updatedAt":"2026-10-10T20:00:00.000Z","progressId":"00000000-0000-4000-8000-000000000001","progress":{"playtimeMinutes":245,"percent":null,"platform":"PC"}},
+     {"id":"googlebooks:book:volume-42","mediaType":"book","provider":"googlebooks","providerId":"volume-42","title":"The Left Hand of Darkness","releaseYear":1969,"status":"reading","userRating":null,"isFavorite":true,"updatedAt":"2026-10-09T09:00:00.000Z","progressId":"00000000-0000-4000-8000-000000000002","progress":{"currentPage":96,"totalPages":304,"percent":32}},
+     {"id":"tmdb:movie:1248832","mediaType":"movie","provider":"tmdb","providerId":"1248832","title":"Digger","posterUrl":"https://image.tmdb.org/t/p/w500/1ATXKrIPJyKNwnJ6lcG088Sa6zi.jpg","releaseYear":2026,"status":"watched","userRating":4,"isFavorite":false,"updatedAt":"2026-10-08T10:00:00.000Z","watchCount":2},
      {"id":"tmdb:movie:1032863","mediaType":"movie","provider":"tmdb","providerId":"1032863","title":"The Love Hypothesis","posterUrl":"https://image.tmdb.org/t/p/w500/vfZxVHextAGC70zrNhS8lsROqP1.jpg","releaseYear":2026,"status":"watchlist","userRating":null,"isFavorite":false,"updatedAt":"2026-10-07T10:00:00.000Z"},
      {"id":"tmdb:tv:1668","mediaType":"tv","provider":"tmdb","providerId":"1668","title":"Friends","posterUrl":"https://image.tmdb.org/t/p/w500/2koX1xLkpTQM4IZebYvKysFW1Nh.jpg","releaseYear":1994,"status":"watching","userRating":5,"isFavorite":true,"updatedAt":"2026-10-06T10:00:00.000Z","progress":{"watchedEpisodes":36,"totalEpisodes":null,"percent":null}},
      {"id":"mock:tv:long-title","mediaType":"tv","provider":"mock","providerId":"long-title","title":"The Unreasonably Long Title of a Series That Must Wrap Naturally on Every iPhone","posterUrl":"https://image.tmdb.org/t/p/w500/z0XiwdrCQ9yVIr4O0pxzaAYRxdW.jpg","status":"dropped","userRating":2,"isFavorite":false,"updatedAt":"2026-09-01T10:00:00.000Z","progress":{"watchedEpisodes":0,"totalEpisodes":10,"percent":0}}
@@ -122,7 +122,8 @@ nonisolated enum MosaicVisualFixtures {
             stateSnapshot: personal(snapshot, empty: MosaicStateSnapshot()),
             seriesState: { _ in try await personal(seriesState, empty: decode(#"{"status":null,"isFavorite":false,"userRating":null,"episodes":[],"seasons":[]}"#, as: SeriesPersonalState.self))() },
             mutate: { mutation in recordedMutations.append(mutation) },
-            discover: { if state == "error" { throw failure }; return discover },
+            updateProfile: { _ in throw failure },
+            discover: { _ in if state == "error" { throw failure }; return discover },
             genre: { type, _ in CatalogSearchResponse(items: catalog.filter { $0.mediaType == type }, failures: []) },
             theme: { _, type in CatalogSearchResponse(items: catalog.filter { type == nil || $0.mediaType == type }, failures: []) },
             related: { route in CatalogSearchResponse(items: catalog.filter { $0.mediaType == route.mediaType && $0.route != route }, failures: []) },
@@ -152,7 +153,7 @@ nonisolated enum MosaicVisualFixtures {
 /// Hosts the real `AppShell` (or a single pushed screen) on fixture services.
 struct MosaicFixtureRoot: View {
     let configuration: MosaicVisualFixtures.Configuration
-    @State private var session = SessionStore.fixture(user: CurrentUser(id: "fixture", profile: Profile(displayName: "Shan Mosaic", username: "shan", avatarURL: nil)))
+    @State private var session = SessionStore.fixture(user: CurrentUser(id: "fixture", profile: Profile(displayName: "Shan Mosaic", username: "shan", bio: "Watching, playing and reading in one place.", watchRegion: "IN")))
 
     var body: some View {
         content
