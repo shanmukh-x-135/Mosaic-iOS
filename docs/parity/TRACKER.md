@@ -5,7 +5,7 @@ Implemented · Testing · Review required · Completed · Blocked.
 Agent: `codex:codex-rescue` unless noted. Updated after every delegation,
 review and merge.
 
-Last updated: 2026-11-14 — M1 complete and merged to main; M2 awaiting approval.
+Last updated: 2026-11-14 — M2 approved and in progress.
 
 ## Prerequisites and decisions
 
@@ -35,9 +35,9 @@ Last updated: 2026-11-14 — M1 complete and merged to main; M2 awaiting approva
 | T1.3 | Episode ratings heatmap | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
 | T1.4 | Franchise screen/link, About & credits | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
 | T1.5 | Brand marks, platforms, credits on detail | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
-| T2.1 | Logging completeness (viewing context, favourite, recents) | Codex | T0.4 | Ready for delegation | — | — |
-| T2.2 | Movie watch history + editor | Codex | T0.4 | Ready for delegation | — | — |
-| T2.3 | Reviews | Codex | T0.4 | Ready for delegation | — | — |
+| T2.1 | Logging completeness (viewing context, favourite, recents) | Codex | T0.4 | Delegated | — | — |
+| T2.2 | Movie watch history + editor | Codex | T0.4 | Delegated | — | — |
+| T2.3 | Reviews | Codex | T0.4 | Delegated | — | — |
 | T3.1 | List creation and editor | Codex | T0.4 | Ready for delegation | — | — |
 | T3.2 | Add to list from detail | Codex | T0.4 | Ready for delegation | — | — |
 | T4.1 | Full activity, filters, movie diary | Codex | T2.2 | Planned | — | — |
@@ -68,3 +68,4 @@ Last updated: 2026-11-14 — M1 complete and merged to main; M2 awaiting approva
 | 2026-11-14 | T0.4a and T0.4b merged; M0 complete (123/123; fixture screenshots unchanged). Wave D tasks ready. |
 | 2026-11-14 | M0 merged into `main` (`4fa1867`). M1 approved; T1.1–T1.4 delegated in parallel. Policy: one milestone at a time with approval; merge integration → main at each milestone end. |
 | 2026-11-14 | M1 complete: related titles, where to watch, episode ratings heatmap, franchise + credits, brand marks/game credits. 152/152. Merged to `main`. Follow-up: `CatalogMedia` lacks `developerLogoUrl`/`publisherLogoUrl` (names shown, no logos) — add in M9. Fixture catalog lacks franchise titles (loaded state verified by unit tests only). |
+| 2026-11-14 | M2 approved; T2.1, T2.2, T2.3 delegated in parallel. |
