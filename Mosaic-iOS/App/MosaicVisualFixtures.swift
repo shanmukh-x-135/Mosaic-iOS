@@ -127,6 +127,14 @@ nonisolated enum MosaicVisualFixtures {
             seriesState: { _ in try await personal(seriesState, empty: decode(#"{"status":null,"isFavorite":false,"userRating":null,"episodes":[],"seasons":[]}"#, as: SeriesPersonalState.self))() },
             mutate: { mutation in recordedMutations.append(mutation) },
             updateProfile: { _ in throw failure },
+            watchProviders: { _, _ in nil }, episodeRatings: { _ in [] },
+            mosaic: { _ in throw failure }, profileStats: { _ in throw failure }, importHistory: { [] },
+            importPreview: { _, _, _, _ in throw failure }, importApply: { _, _ in throw failure }, importUndo: { _ in throw failure },
+            exportArchive: { throw failure }, assistant: { _ in AsyncThrowingStream { $0.finish(throwing: failure) } },
+            publicList: { id in
+                guard let list = lists.first(where: { $0.id == id }) else { throw failure }
+                return list
+            },
             discover: { _ in if state == "error" { throw failure }; return discover },
             genre: { type, _ in CatalogSearchResponse(items: catalog.filter { $0.mediaType == type }, failures: []) },
             theme: { _, type in CatalogSearchResponse(items: catalog.filter { type == nil || $0.mediaType == type }, failures: []) },

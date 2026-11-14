@@ -20,6 +20,19 @@ nonisolated struct MosaicServices {
     /// Replaces the signed-in user's editable profile (`PATCH /api/me/profile`).
     var updateProfile: @MainActor (_ update: ProfileUpdateRequest) async throws -> Profile
 
+    // Parity contracts have defaults so existing fixture and test initializers remain valid.
+    var watchProviders: @MainActor (_ route: MediaDetailRoute, _ country: String) async throws -> WatchAvailability? = { _, _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var episodeRatings: @MainActor (_ route: MediaDetailRoute) async throws -> [[CatalogEpisode]] = { _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var mosaic: @MainActor (_ period: String) async throws -> MosaicSnapshot = { _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var profileStats: @MainActor (_ period: String) async throws -> ProfileStatsResponse = { _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var importHistory: @MainActor () async throws -> [ImportHistoryItem] = { throw MosaicAPIError.notFound("Unavailable.") }
+    var importPreview: @MainActor (_ source: ImportSource, _ filename: String, _ contentType: String, _ data: Data) async throws -> ImportPreview = { _, _, _, _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var importApply: @MainActor (_ jobId: String, _ request: ImportApplyRequest) async throws -> ImportApplyResult = { _, _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var importUndo: @MainActor (_ jobId: String) async throws -> ImportUndoResult = { _ in throw MosaicAPIError.notFound("Unavailable.") }
+    var exportArchive: @MainActor () async throws -> URL = { throw MosaicAPIError.notFound("Unavailable.") }
+    var assistant: @MainActor (_ request: AssistantRequest) -> AsyncThrowingStream<AssistantEvent, Error> = { _ in AsyncThrowingStream { $0.finish(throwing: MosaicAPIError.notFound("Unavailable.")) } }
+    var publicList: @MainActor (_ id: String) async throws -> UserList = { _ in throw MosaicAPIError.notFound("Unavailable.") }
+
     // Public catalog.
     var discover: @MainActor (_ region: String?) async throws -> CatalogDiscoverResponse
     var genre: @MainActor (_ type: CatalogMediaType, _ genreID: Int) async throws -> CatalogSearchResponse
@@ -37,6 +50,15 @@ extension MosaicServices {
             try await client.request(path, token: try await session.currentAccessToken(), as: type)
         }
         func encoded(_ value: String) -> String { value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? value }
+        func query(_ period: String) -> String {
+            var components = URLComponents()
+            components.queryItems = [URLQueryItem(name: "period", value: period)]
+            return components.percentEncodedQuery ?? ""
+        }
+        func decodeImport<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+            do { return try JSONDecoder().decode(type, from: data) }
+            catch { throw MosaicAPIError.decoding("Mosaic returned data the app could not read.") }
+        }
         return MosaicServices(
             continueItems: { try await authed("/api/me/continue?limit=8", as: ContinueResponseDTO.self).items.map(ContinueStory.init(dto:)) },
             library: { try await authed("/api/me/library", as: LibraryResponseDTO.self).items },
@@ -63,6 +85,53 @@ extension MosaicServices {
                 MosaicStateInvalidation.postProfileChange()
                 return response.profile
             },
+            watchProviders: { route, country in
+                try await client.publicRequest(path: "/api/catalog/\(encoded(route.provider))/\(route.mediaType.rawValue)/\(encoded(route.providerID))/watch-providers", queryItems: [URLQueryItem(name: "country", value: country)], as: WatchAvailability?.self)
+            },
+            episodeRatings: { route in
+                try await client.publicRequest(path: "/api/catalog/\(encoded(route.provider))/tv/\(encoded(route.providerID))/episode-ratings", as: EpisodeRatings.self).seasons
+            },
+            mosaic: { period in try await authed("/api/me/mosaic?\(query(period))") },
+            profileStats: { period in try await authed("/api/me/profile-stats?\(query(period))") },
+            importHistory: { try await authed("/api/me/imports", as: ImportHistoryResponse.self).jobs },
+            importPreview: { source, filename, contentType, data in
+                let headers = ["content-type": contentType, "x-import-source": source.rawValue,
+                               "x-file-name": filename.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-_.!~*'()"))) ?? filename]
+                let (body, _) = try await client.upload(path: "/api/me/imports/preview", headers: headers, body: data, token: try await session.currentAccessToken())
+                return try decodeImport(ImportPreview.self, from: body)
+            },
+            importApply: { jobId, request in
+                let body = try await client.mutateReturningData(path: "/api/me/imports/\(encoded(jobId))/apply", body: request, token: try await session.currentAccessToken())
+                let result = try decodeImport(ImportApplyResult.self, from: body)
+                MosaicStateInvalidation.post()
+                return result
+            },
+            importUndo: { jobId in
+                let (body, _) = try await client.upload(path: "/api/me/imports/\(encoded(jobId))/undo", headers: [:], body: Data(), token: try await session.currentAccessToken())
+                let result = try decodeImport(ImportUndoResult.self, from: body)
+                MosaicStateInvalidation.post()
+                return result
+            },
+            exportArchive: { try await client.download(path: "/api/me/export", token: try await session.currentAccessToken()) },
+            assistant: { request in
+                AsyncThrowingStream { continuation in
+                    let task = Task { @MainActor in
+                        do {
+                            let token = try await session.currentAccessToken()
+                            for try await line in client.lines(path: "/api/me/assistant", body: request, token: token) {
+                                try Task.checkCancellation()
+                                let event: AssistantEvent
+                                do { event = try JSONDecoder.mosaic.decode(AssistantEvent.self, from: line) }
+                                catch { throw MosaicAPIError.decoding("Mosaic returned data the app could not read.") }
+                                if case .terminated = continuation.yield(event) { break }
+                            }
+                            continuation.finish()
+                        } catch { continuation.finish(throwing: error) }
+                    }
+                    continuation.onTermination = { @Sendable _ in task.cancel() }
+                }
+            },
+            publicList: { id in try await client.publicRequest(path: "/api/lists/\(encoded(id))", as: UserList.self) },
             discover: { region in
                 try await client.publicRequest(path: "/api/catalog/discover", queryItems: region.map { [URLQueryItem(name: "region", value: $0)] } ?? [], as: CatalogDiscoverResponse.self)
             },
@@ -104,6 +173,10 @@ extension MosaicServices {
             continueItems: { throw failure }, library: { throw failure }, activity: { _ in throw failure }, stats: { throw failure },
             lists: { throw failure }, stateSnapshot: { throw failure }, seriesState: { _ in throw failure }, mutate: { _ in throw failure },
             updateProfile: { _ in throw failure },
+            watchProviders: { _, _ in throw failure }, episodeRatings: { _ in throw failure },
+            mosaic: { _ in throw failure }, profileStats: { _ in throw failure }, importHistory: { throw failure },
+            importPreview: { _, _, _, _ in throw failure }, importApply: { _, _ in throw failure }, importUndo: { _ in throw failure },
+            exportArchive: { throw failure }, assistant: { _ in AsyncThrowingStream { $0.finish(throwing: failure) } }, publicList: { _ in throw failure },
             discover: { _ in throw failure }, genre: { _, _ in throw failure }, theme: { _, _ in throw failure }, related: { _ in throw failure },
             search: { _, _ in throw failure }, detail: { _ in throw failure }, season: { _ in throw failure }
         )
