@@ -142,7 +142,46 @@ nonisolated enum MosaicVisualFixtures {
                     }
                 }
             },
-            mosaic: { _ in throw failure }, profileStats: { _ in throw failure }, importHistory: { [] },
+            mosaic: { _ in throw failure }, profileStats: { period in
+                try await Task.sleep(for: .milliseconds(150))
+                if state == "error" { throw failure }
+                let empty = state == "empty"
+                let year = Int(period)
+                let multiplier = year == 2025 ? 1 : (year == nil ? 3 : 2)
+                let watches = empty ? 0 : 12 * multiplier
+                let episodes = empty ? 0 : 40 * multiplier
+                let periodJSON = year.map { "{\"kind\":\"year\",\"year\":\($0)}" } ?? #"{"kind":"all"}"#
+                let movie = empty ? "[]" : "[\(json(digger)),\(json(loveHypothesis))]"
+                let series = empty ? "[]" : "[\(json(succession)),\(json(friends))]"
+                func genreJSON(titles: Int, name: String) -> String {
+                    let count = empty ? 0 : titles
+                    return "{\"titles\":\(count),\"withGenres\":\(count),\"top\":\(empty ? "[]" : "[{\"name\":\"\(name)\",\"count\":\(count)}]")}"
+                }
+                let rating = empty ? #"{"count":0}"# : #"{"count":2,"average":4.5}"#
+                let distribution = (1...10).map { index in
+                    "{\"value\":\(Double(index) / 2),\"count\":\(empty ? 0 : (index == 8 || index == 10 ? (year == nil ? 4 : 2) : 0))}"
+                }.joined(separator: ",")
+                func activityJSON(_ unit: String, total: Int) -> String {
+                    let keys = year.map { y in (1...12).map { String(format: "%d-%02d", y, $0) } } ?? ["2025", "2026"]
+                    let labels = year == nil ? keys : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                    let buckets = keys.enumerated().map { index, key in
+                        "{\"key\":\"\(key)\",\"label\":\"\(labels[index])\",\"count\":\(index == keys.count - 1 ? total - total / 3 : (index == 0 ? total / 3 : 0))}"
+                    }
+                    return "{\"unit\":\"\(unit)\",\"granularity\":\"\(year == nil ? "year" : "month")\",\"buckets\":[\(buckets.joined(separator: ","))],\"total\":\(total),\"peak\":\(empty ? "null" : buckets.last!),\"weekdays\":[\(total / 2),\(total - total / 2),0,0,0,0,0]}"
+                }
+                return decode(#"""
+                {"years":\#(empty ? "[]" : "[2026,2025]"),"stats":{
+                  "period":\#(periodJSON),
+                  "movie":{"watchLogs":\#(watches),"uniqueTitles":\#(empty ? 0 : 10 * multiplier),"rewatchLogs":\#(empty ? 0 : 2 * multiplier),"recent":\#(movie),"mostRewatched":\#(empty ? "null" : "{\"media\":\(json(digger)),\"count\":\(2 * multiplier)}")},
+                  "series":{"episodeLogs":\#(episodes),"uniqueEpisodes":\#(empty ? 0 : 38 * multiplier),"rewatchLogs":\#(empty ? 0 : 2 * multiplier),"shows":\#(empty ? 0 : 2),"recent":\#(series),"mostLogged":\#(empty ? "[]" : "[{\"media\":\(json(succession)),\"count\":\(episodes)}]"),"status":{"watching":\#(empty ? 0 : 2),"paused":0,"completed":0,"dropped":0,"watchlist":0}},
+                  "game":{"completedPlaythroughs":\#(empty ? 0 : 1),"recordedPlaytimeMinutes":\#(empty ? 0 : 1445),"statuses":{"playing":\#(empty ? 0 : 1),"paused":0,"completed":\#(empty ? 0 : 1),"dropped":0,"backlog":0},"completed":\#(empty ? "[]" : "[\(json(hades))]")},
+                  "book":{"finished":\#(empty ? 0 : 1),"statuses":{"reading":0,"paused":0,"finished":\#(empty ? 0 : 1),"dnf":0,"want_to_read":\#(empty ? 0 : 2)},"finishedTitles":\#(empty ? "[]" : "[\(json(leftHand))]"),"authors":\#(empty ? "[]" : #"[{"name":"Ursula K. Le Guin","count":1}]"#)},
+                  "ratings":{"population":"\#(year == nil ? "all" : "logged-in-period")","count":\#(empty ? 0 : (year == nil ? 8 : 4)),"average":\#(empty ? "null" : "4.5"),"distribution":[\#(distribution)],"byMedium":{"movie":\#(rating),"series":\#(rating),"game":\#(year == nil ? rating : #"{"count":0}"#),"book":\#(year == nil ? rating : #"{"count":0}"#)},"top":\#(empty ? "[]" : "[{\"media\":\(json(friends)),\"value\":5},{\"media\":\(json(digger)),\"value\":4}]")},
+                  "genres":{"movie":\#(genreJSON(titles: 10 * multiplier, name: "Comedy")),"series":\#(genreJSON(titles: 2, name: "Comedy")),"game":\#(genreJSON(titles: 1, name: "Role-playing (RPG)")),"book":\#(genreJSON(titles: 1, name: "Science Fiction"))},
+                  "activity":{"movie":\#(activityJSON("film watches", total: watches)),"series":\#(activityJSON("episodes logged", total: episodes))}
+                }}
+                """#, as: ProfileStatsResponse.self)
+            }, importHistory: { [] },
             importPreview: { _, _, _, _ in throw failure }, importApply: { _, _ in throw failure }, importUndo: { _ in throw failure },
             exportArchive: { throw failure }, assistant: { _ in AsyncThrowingStream { $0.finish(throwing: failure) } },
             publicList: { id in
