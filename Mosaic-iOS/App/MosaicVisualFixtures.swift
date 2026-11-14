@@ -127,7 +127,21 @@ nonisolated enum MosaicVisualFixtures {
             seriesState: { _ in try await personal(seriesState, empty: decode(#"{"status":null,"isFavorite":false,"userRating":null,"episodes":[],"seasons":[]}"#, as: SeriesPersonalState.self))() },
             mutate: { mutation in recordedMutations.append(mutation) },
             updateProfile: { _ in throw failure },
-            watchProviders: { _, country in WatchAvailability(country: country, link: URL(string: "https://www.themoviedb.org/movie/0/watch"), providers: [WatchProvider(id: 8, name: "Netflix", logoURL: URL(string: "https://image.tmdb.org/t/p/original/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg"), kind: .flatrate), WatchProvider(id: 9, name: "Amazon Prime Video", logoURL: nil, kind: .flatrate), WatchProvider(id: 2, name: "Apple TV", logoURL: nil, kind: .rent), WatchProvider(id: 3, name: "Google Play Movies", logoURL: nil, kind: .buy)]) }, episodeRatings: { _ in [] },
+            watchProviders: { _, country in WatchAvailability(country: country, link: URL(string: "https://www.themoviedb.org/movie/0/watch"), providers: [WatchProvider(id: 8, name: "Netflix", logoURL: URL(string: "https://image.tmdb.org/t/p/original/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg"), kind: .flatrate), WatchProvider(id: 9, name: "Amazon Prime Video", logoURL: nil, kind: .flatrate), WatchProvider(id: 2, name: "Apple TV", logoURL: nil, kind: .rent), WatchProvider(id: 3, name: "Google Play Movies", logoURL: nil, kind: .buy)]) },
+            episodeRatings: { _ in
+                let ratings = [9.8, 9.2, 8.5, 7.3, 6.4, 5.2, 4.1, 8.9]
+                return (1...3).map { season in
+                    episodes(season: season).enumerated().map { index, episode in
+                        CatalogEpisode(
+                            id: episode.id, seasonNumber: episode.seasonNumber, episodeNumber: episode.episodeNumber,
+                            title: episode.title, overview: episode.overview, stillURL: episode.stillURL,
+                            airDate: episode.airDate, runtimeMinutes: episode.runtimeMinutes,
+                            publicRating: season == 1 && index == 7 ? nil : ratings[(index + season - 1) % ratings.count],
+                            publicRatingCount: season == 1 && index == 7 ? nil : 1_200 + index * 37
+                        )
+                    }
+                }
+            },
             mosaic: { _ in throw failure }, profileStats: { _ in throw failure }, importHistory: { [] },
             importPreview: { _, _, _, _ in throw failure }, importApply: { _, _ in throw failure }, importUndo: { _ in throw failure },
             exportArchive: { throw failure }, assistant: { _ in AsyncThrowingStream { $0.finish(throwing: failure) } },
