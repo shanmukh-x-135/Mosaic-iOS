@@ -205,6 +205,16 @@ struct MosaicFixtureRoot: View {
         case "list": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.list(fixtures.lists[0])]])
         case "activity": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.activity]])
         case "settings": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.settings]])
+        case "franchise": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.franchise("dune")]])
+        case "credits": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.credits]])
+        case "stats": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.stats]])
+        case "reviews": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.reviews]])
+        case "mosaic": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.mosaic(nil)]])
+        case "recap": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.recap("2026")]])
+        case "ask": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.ask(nil)]])
+        case "yourdata": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.yourData]])
+        case "import": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.importFlow]])
+        case "export": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.exportData]])
         case "quicklog":
             let router = MosaicRouter(selectedTab: .home)
             router.isQuickLogPresented = true

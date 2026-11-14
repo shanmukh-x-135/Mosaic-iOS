@@ -10,6 +10,18 @@ enum MosaicRoute: Hashable {
     case list(UserList)
     case activity
     case settings
+    case franchise(String)
+    case season(CatalogMedia, Int)
+    case reviews
+    case diary
+    case stats
+    case mosaic(String?)
+    case recap(String)
+    case yourData
+    case credits
+    case importFlow
+    case ask(String?)
+    case exportData
 
     static func media(_ media: CatalogMedia) -> MosaicRoute { .media(media.route, MediaDetailPreview(media: media)) }
     static func media(_ item: LibraryItemDTO) -> MosaicRoute { .media(item.route, MediaDetailPreview(library: item)) }
