@@ -1,129 +1,261 @@
 import Foundation
 
-/// One `PersistenceMutation` for `POST /api/me/state`. The server validates
-/// every command (`src/lib/persistence/validation.ts`); this type only builds
-/// documented shapes. Optional fields are omitted when nil, except where the
-/// schema requires an explicit `null` (`rating.set` clearing a rating).
+nonisolated enum MovieViewingContext: String, CaseIterable {
+    case theater, streaming, television, physical, digital, other
+
+    var label: String {
+        switch self {
+        case .theater: "Theater"
+        case .streaming: "Streaming"
+        case .television: "TV / Broadcast"
+        case .physical: "Blu-ray / DVD"
+        case .digital: "Digital purchase/rental"
+        case .other: "Other"
+        }
+    }
+}
+
+/// One server command for `POST /api/me/state`. Optional fields are omitted,
+/// except the nullable values used to clear a rating or watch region.
 nonisolated struct DetailMutation: Encodable, Equatable {
-    let type: String
     let media: CatalogMedia?
-    var series: CatalogMedia?
-    var status: String?
-    var state: String?
-    var provenance: String?
-    var isFavorite: Bool?
-    var onlyIfUntracked: Bool?
-    var value: Double?
-    var region: String?
-    var rating: Double?
-    var watchedAt: String?
-    var isRewatch: Bool?
-    var review: String?
-    var seasonNumber: Int?
-    var episodeNumber: Int?
-    var episodeTitle: String?
-    var playthroughID: String?
-    var readingID: String?
-    var platform: String?
-    var playtimeMinutes: Int?
-    var progressPercent: Double?
-    var currentPage: Int?
-    var totalPages: Int?
+    private let payload: Payload
+
+    private enum Payload: Equatable {
+        case watchRegion(String?)
+        case rating(Double?)
+        case library(status: String, isFavorite: Bool?, onlyIfUntracked: Bool?)
+        case removeLibrary
+        case reviewSave(id: String?, body: String, containsSpoilers: Bool, rating: Double?)
+        case reviewDelete(id: String)
+        case listCreate(title: String, description: String, visibility: UserList.Visibility)
+        case listAdd(listID: String, note: String?)
+        case listUpdate(listID: String, title: String, description: String, visibility: UserList.Visibility)
+        case listItemUpdate(listID: String, itemID: String, note: String)
+        case listItemRemove(listID: String, itemID: String)
+        case listReorder(listID: String, itemIDs: [String])
+        case movieLog(MovieFields)
+        case movieUpdate(watchID: String, MovieFields)
+        case movieDelete(watchID: String)
+        case episodeLog(season: Int, episode: Int, watchedAt: String, rating: Double?, episodeTitle: String?)
+        case episodeUnwatch(season: Int, episode: Int)
+        case seasonState(season: Int, state: String, completedOn: String?)
+        case game(playthroughID: String?, status: String, platform: String?, playtimeMinutes: Int, percent: Double?, rating: Double?)
+        case book(readingID: String?, status: String, currentPage: Int?, totalPages: Int?, percent: Double?, rating: Double?)
+    }
+
+    private struct MovieFields: Equatable {
+        let watchedAt: String
+        let isRewatch: Bool
+        let rating: Double?
+        let review: String?
+        let viewingContext: MovieViewingContext?
+        let streamingService: String?
+    }
+
+    var type: String {
+        switch payload {
+        case .watchRegion: "settings.watchRegion"
+        case .rating: "rating.set"
+        case .library: "library.upsert"
+        case .removeLibrary: "library.remove"
+        case .reviewSave: "review.save"
+        case .reviewDelete: "review.delete"
+        case .listCreate: "list.create"
+        case .listAdd: "list.add"
+        case .listUpdate: "list.update"
+        case .listItemUpdate: "list.item.update"
+        case .listItemRemove: "list.item.remove"
+        case .listReorder: "list.reorder"
+        case .movieLog: "movie.log"
+        case .movieUpdate: "movie.update"
+        case .movieDelete: "movie.delete"
+        case .episodeLog: "episode.log"
+        case .episodeUnwatch: "episode.unwatch"
+        case .seasonState: "season.state"
+        case .game: "game.upsert"
+        case .book: "book.upsert"
+        }
+    }
+
+    /// The identity whose personal state this command changes, including series.
+    var affectedRoute: MediaDetailRoute? { media?.route }
 
     private enum CodingKeys: String, CodingKey {
-        case type, media, series, status, state, provenance, isFavorite, onlyIfUntracked, value, rating, watchedAt, isRewatch, review
-        case seasonNumber, episodeNumber, episodeTitle, playthroughID = "playthroughId", readingID = "readingId", platform, playtimeMinutes, progressPercent, currentPage, totalPages
+        case type, media, series, value, status, isFavorite, onlyIfUntracked, rating, review
+        case id, body, containsSpoilers, title, description, visibility, note
+        case listID = "listId", itemID = "itemId", itemIDs = "itemIds", watchID = "watchId"
+        case watchedAt, isRewatch, viewingContext, streamingService
+        case seasonNumber, episodeNumber, episodeTitle, state, provenance, completedOn
+        case playthroughID = "playthroughId", readingID = "readingId", platform, playtimeMinutes, progressPercent, currentPage, totalPages
     }
-    /// `settings.watchRegion` shares no media identity and has a string `value`.
-    private enum RegionCodingKeys: String, CodingKey { case type, value }
 
     func encode(to encoder: Encoder) throws {
-        if type == "settings.watchRegion" {
-            var container = encoder.container(keyedBy: RegionCodingKeys.self)
-            try container.encode(type, forKey: .type)
-            try container.encode(region, forKey: .value)
-            return
-        }
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
-        try container.encodeIfPresent(media, forKey: .media)
-        try container.encodeIfPresent(series, forKey: .series)
-        try container.encodeIfPresent(status, forKey: .status)
-        try container.encodeIfPresent(state, forKey: .state)
-        try container.encodeIfPresent(provenance, forKey: .provenance)
-        try container.encodeIfPresent(isFavorite, forKey: .isFavorite)
-        try container.encodeIfPresent(onlyIfUntracked, forKey: .onlyIfUntracked)
-        if type == "rating.set" { try container.encode(value, forKey: .value) }
-        else { try container.encodeIfPresent(value, forKey: .value) }
-        try container.encodeIfPresent(rating, forKey: .rating)
-        try container.encodeIfPresent(watchedAt, forKey: .watchedAt)
-        try container.encodeIfPresent(isRewatch, forKey: .isRewatch)
-        try container.encodeIfPresent(review, forKey: .review)
-        try container.encodeIfPresent(seasonNumber, forKey: .seasonNumber)
-        try container.encodeIfPresent(episodeNumber, forKey: .episodeNumber)
-        try container.encodeIfPresent(episodeTitle, forKey: .episodeTitle)
-        try container.encodeIfPresent(playthroughID, forKey: .playthroughID)
-        try container.encodeIfPresent(readingID, forKey: .readingID)
-        try container.encodeIfPresent(platform, forKey: .platform)
-        try container.encodeIfPresent(playtimeMinutes, forKey: .playtimeMinutes)
-        try container.encodeIfPresent(progressPercent, forKey: .progressPercent)
-        try container.encodeIfPresent(currentPage, forKey: .currentPage)
-        try container.encodeIfPresent(totalPages, forKey: .totalPages)
+        switch payload {
+        case .episodeLog, .episodeUnwatch, .seasonState:
+            try container.encodeIfPresent(media, forKey: .series)
+        default:
+            try container.encodeIfPresent(media, forKey: .media)
+        }
+        switch payload {
+        case .watchRegion(let region):
+            try container.encode(region, forKey: .value)
+        case .rating(let value):
+            try container.encode(value, forKey: .value)
+        case let .library(status, isFavorite, onlyIfUntracked):
+            try container.encode(status, forKey: .status)
+            try container.encodeIfPresent(isFavorite, forKey: .isFavorite)
+            try container.encodeIfPresent(onlyIfUntracked, forKey: .onlyIfUntracked)
+        case .removeLibrary:
+            break
+        case let .reviewSave(id, body, containsSpoilers, rating):
+            try container.encodeIfPresent(id, forKey: .id)
+            try container.encode(body, forKey: .body)
+            try container.encode(containsSpoilers, forKey: .containsSpoilers)
+            try container.encodeIfPresent(rating, forKey: .rating)
+        case .reviewDelete(let id):
+            try container.encode(id, forKey: .id)
+        case let .listCreate(title, description, visibility):
+            try container.encode(title, forKey: .title)
+            try container.encode(description, forKey: .description)
+            try container.encode(visibility.rawValue, forKey: .visibility)
+        case let .listAdd(listID, note):
+            try container.encode(listID, forKey: .listID)
+            try container.encodeIfPresent(note, forKey: .note)
+        case let .listUpdate(listID, title, description, visibility):
+            try container.encode(listID, forKey: .listID)
+            try container.encode(title, forKey: .title)
+            try container.encode(description, forKey: .description)
+            try container.encode(visibility.rawValue, forKey: .visibility)
+        case let .listItemUpdate(listID, itemID, note):
+            try container.encode(listID, forKey: .listID)
+            try container.encode(itemID, forKey: .itemID)
+            try container.encode(note, forKey: .note)
+        case let .listItemRemove(listID, itemID):
+            try container.encode(listID, forKey: .listID)
+            try container.encode(itemID, forKey: .itemID)
+        case let .listReorder(listID, itemIDs):
+            try container.encode(listID, forKey: .listID)
+            try container.encode(itemIDs, forKey: .itemIDs)
+        case .movieLog(let fields), .movieUpdate(_, let fields):
+            if case .movieUpdate(let watchID, _) = payload { try container.encode(watchID, forKey: .watchID) }
+            try container.encode(fields.watchedAt, forKey: .watchedAt)
+            try container.encode(fields.isRewatch, forKey: .isRewatch)
+            try container.encodeIfPresent(fields.rating, forKey: .rating)
+            try container.encodeIfPresent(fields.review, forKey: .review)
+            try container.encodeIfPresent(fields.viewingContext?.rawValue, forKey: .viewingContext)
+            if fields.viewingContext == .streaming,
+               let service = fields.streamingService?.trimmingCharacters(in: .whitespacesAndNewlines), !service.isEmpty {
+                try container.encode(service, forKey: .streamingService)
+            }
+        case .movieDelete(let watchID):
+            try container.encode(watchID, forKey: .watchID)
+        case let .episodeLog(season, episode, watchedAt, rating, episodeTitle):
+            try container.encode(season, forKey: .seasonNumber)
+            try container.encode(episode, forKey: .episodeNumber)
+            try container.encode(watchedAt, forKey: .watchedAt)
+            try container.encodeIfPresent(rating, forKey: .rating)
+            try container.encodeIfPresent(episodeTitle, forKey: .episodeTitle)
+        case let .episodeUnwatch(season, episode):
+            try container.encode(season, forKey: .seasonNumber)
+            try container.encode(episode, forKey: .episodeNumber)
+        case let .seasonState(season, state, completedOn):
+            try container.encode(season, forKey: .seasonNumber)
+            try container.encode(state, forKey: .state)
+            try container.encode("bulk_season", forKey: .provenance)
+            try container.encodeIfPresent(completedOn, forKey: .completedOn)
+        case let .game(playthroughID, status, platform, playtimeMinutes, percent, rating):
+            try container.encodeIfPresent(playthroughID, forKey: .playthroughID)
+            try container.encode(status, forKey: .status)
+            try container.encodeIfPresent(platform, forKey: .platform)
+            try container.encode(playtimeMinutes, forKey: .playtimeMinutes)
+            try container.encodeIfPresent(percent, forKey: .progressPercent)
+            try container.encodeIfPresent(rating, forKey: .rating)
+        case let .book(readingID, status, currentPage, totalPages, percent, rating):
+            try container.encodeIfPresent(readingID, forKey: .readingID)
+            try container.encode(status, forKey: .status)
+            try container.encodeIfPresent(currentPage, forKey: .currentPage)
+            try container.encodeIfPresent(totalPages, forKey: .totalPages)
+            try container.encodeIfPresent(percent, forKey: .progressPercent)
+            try container.encodeIfPresent(rating, forKey: .rating)
+        }
     }
 
-    private init(type: String, media: CatalogMedia?) { self.type = type; self.media = media }
+    private init(_ payload: Payload, media: CatalogMedia? = nil) { self.payload = payload; self.media = media }
 
-    /// The identity whose personal state this command changes.
-    var affectedRoute: MediaDetailRoute? { (series ?? media)?.route }
+    static func watchRegion(_ region: String?) -> Self { .init(.watchRegion(region)) }
+    static func rating(_ media: CatalogMedia, _ value: Double?) -> Self { .init(.rating(value), media: media) }
 
-    /// `settings.watchRegion` is not media-scoped; it only carries the region.
-    static func watchRegion(_ region: String?) -> Self {
-        with(.init(type: "settings.watchRegion", media: nil)) { $0.region = region }
-    }
-
-    static func rating(_ media: CatalogMedia, _ value: Double?) -> Self { with(.init(type: "rating.set", media: media)) { $0.value = value } }
-
-    /// A status change. `isFavorite` is only sent when the favourite itself changes,
-    /// so a status edit never resets it.
+    /// Omitting `isFavorite` keeps the existing favourite when changing status.
     static func library(_ media: CatalogMedia, status: String, isFavorite: Bool? = nil) -> Self {
-        with(.init(type: "library.upsert", media: media)) { $0.status = status; $0.isFavorite = isFavorite }
+        .init(.library(status: status, isFavorite: isFavorite, onlyIfUntracked: nil), media: media)
     }
 
-    /// Save for later: inserts the medium's planned status only when untracked
-    /// (`addIfUntracked`), so a stale client can never reset a tracked entry.
     static func saveForLater(_ media: CatalogMedia) -> Self {
-        with(.init(type: "library.upsert", media: media)) { $0.status = LibraryStatus.saveForLater(for: media.mediaType).rawValue; $0.onlyIfUntracked = true }
+        .init(.library(status: LibraryStatus.saveForLater(for: media.mediaType).rawValue, isFavorite: nil, onlyIfUntracked: true), media: media)
     }
 
-    static func removeLibrary(_ media: CatalogMedia) -> Self { .init(type: "library.remove", media: media) }
+    static func removeLibrary(_ media: CatalogMedia) -> Self { .init(.removeLibrary, media: media) }
 
-    static func movieLog(_ media: CatalogMedia, watchedAt: Date, isRewatch: Bool, rating: Double?, review: String?) -> Self {
-        with(.init(type: "movie.log", media: media)) { $0.watchedAt = day.string(from: watchedAt); $0.isRewatch = isRewatch; $0.rating = rating; $0.review = review }
+    static func reviewSave(id: String? = nil, media: CatalogMedia, body: String, containsSpoilers: Bool, rating: Double? = nil) -> Self {
+        .init(.reviewSave(id: id, body: body, containsSpoilers: containsSpoilers, rating: rating), media: media)
     }
+
+    static func reviewDelete(id: String) -> Self { .init(.reviewDelete(id: id)) }
+
+    static func listCreate(title: String, description: String, visibility: UserList.Visibility) -> Self {
+        .init(.listCreate(title: title, description: description, visibility: visibility))
+    }
+
+    static func listAdd(listID: String, media: CatalogMedia, note: String? = nil) -> Self {
+        .init(.listAdd(listID: listID, note: note), media: media)
+    }
+
+    static func listUpdate(listID: String, title: String, description: String, visibility: UserList.Visibility) -> Self {
+        .init(.listUpdate(listID: listID, title: title, description: description, visibility: visibility))
+    }
+
+    static func listItemUpdate(listID: String, itemID: String, note: String) -> Self {
+        .init(.listItemUpdate(listID: listID, itemID: itemID, note: note))
+    }
+
+    static func listItemRemove(listID: String, itemID: String) -> Self { .init(.listItemRemove(listID: listID, itemID: itemID)) }
+    static func listReorder(listID: String, itemIDs: [String]) -> Self { .init(.listReorder(listID: listID, itemIDs: itemIDs)) }
+
+    static func movieLog(_ media: CatalogMedia, watchedAt: Date, isRewatch: Bool, rating: Double?, review: String?, viewingContext: MovieViewingContext? = nil, streamingService: String? = nil) -> Self {
+        .init(.movieLog(.init(watchedAt: day.string(from: watchedAt), isRewatch: isRewatch, rating: rating, review: review, viewingContext: viewingContext, streamingService: streamingService)), media: media)
+    }
+
+    static func movieUpdate(watchID: String, media: CatalogMedia, watchedAt: Date, isRewatch: Bool, rating: Double?, review: String?, viewingContext: MovieViewingContext? = nil, streamingService: String? = nil) -> Self {
+        .init(.movieUpdate(watchID: watchID, .init(watchedAt: day.string(from: watchedAt), isRewatch: isRewatch, rating: rating, review: review, viewingContext: viewingContext, streamingService: streamingService)), media: media)
+    }
+
+    static func movieDelete(watchID: String) -> Self { .init(.movieDelete(watchID: watchID)) }
 
     static func episodeLog(_ media: CatalogMedia, season: Int, episode: Int, watchedAt: Date, rating: Double?, episodeTitle: String? = nil) -> Self {
-        with(.init(type: "episode.log", media: media)) { $0.series = media; $0.seasonNumber = season; $0.episodeNumber = episode; $0.watchedAt = instant.string(from: watchedAt); $0.rating = rating; $0.episodeTitle = episodeTitle }
+        .init(.episodeLog(season: season, episode: episode, watchedAt: instant.string(from: watchedAt), rating: rating, episodeTitle: episodeTitle), media: media)
     }
 
     static func episodeUnwatch(_ media: CatalogMedia, season: Int, episode: Int) -> Self {
-        with(.init(type: "episode.unwatch", media: media)) { $0.series = media; $0.seasonNumber = season; $0.episodeNumber = episode }
+        .init(.episodeUnwatch(season: season, episode: episode), media: media)
     }
 
-    static func seasonState(_ media: CatalogMedia, season: Int, state: String) -> Self {
-        with(.init(type: "season.state", media: media)) { $0.series = media; $0.seasonNumber = season; $0.state = state; $0.provenance = "bulk_season" }
+    static func seasonState(_ media: CatalogMedia, season: Int, state: String, today: Date = .now) -> Self {
+        .init(.seasonState(season: season, state: state, completedOn: state == "completed" ? day.string(from: today) : nil), media: media)
     }
 
     /// Updates `playthroughID` when one exists; otherwise starts a new playthrough.
     static func game(_ media: CatalogMedia, playthroughID: String?, status: String, platform: String?, playtimeMinutes: Int, percent: Double?, rating: Double?) -> Self {
-        with(.init(type: "game.upsert", media: media)) { $0.playthroughID = playthroughID; $0.status = status; $0.platform = platform; $0.playtimeMinutes = playtimeMinutes; $0.progressPercent = percent; $0.rating = rating }
+        .init(.game(playthroughID: playthroughID, status: status, platform: platform, playtimeMinutes: playtimeMinutes, percent: percent, rating: rating), media: media)
     }
 
     /// Updates `readingID` when one exists; otherwise starts a new reading.
     static func book(_ media: CatalogMedia, readingID: String?, status: String, currentPage: Int?, totalPages: Int?, percent: Double?, rating: Double?) -> Self {
-        with(.init(type: "book.upsert", media: media)) { $0.readingID = readingID; $0.status = status; $0.currentPage = currentPage; $0.totalPages = totalPages; $0.progressPercent = percent; $0.rating = rating }
+        .init(.book(readingID: readingID, status: status, currentPage: currentPage, totalPages: totalPages, percent: percent, rating: rating), media: media)
     }
 
-    private static func with(_ base: Self, _ apply: (inout Self) -> Void) -> Self { var value = base; apply(&value); return value }
     private static let day: DateFormatter = { let formatter = DateFormatter(); formatter.calendar = Calendar(identifier: .iso8601); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "yyyy-MM-dd"; return formatter }()
     private static let instant = ISO8601DateFormatter()
 }

@@ -23,6 +23,8 @@ struct SeriesHubView: View {
                 PersonalStoryPanel(media: media, showsLogAction: false)
             }
             .padding(.horizontal, MosaicLayout.pageHorizontal)
+            if FranchiseLink.isAvailable { FranchiseLink(media: media) }
+            if ReviewSection.isAvailable { ReviewSection(media: media) }
             if let description = media.description, !description.isEmpty { DetailAbout(text: description) }
             if !seasons.isEmpty {
                 VStack(alignment: .leading, spacing: MosaicSpace.small) {
@@ -38,12 +40,15 @@ struct SeriesHubView: View {
                     }
                 }
             }
+            if EpisodeRatingsSection.isAvailable { EpisodeRatingsSection(series: media) }
             DetailFacts(facts: [
                 DetailFact("Network", media.network),
                 DetailFact("Seasons", media.seasonCount.map(String.init)),
                 DetailFact("Episodes", (media.eligibleEpisodeCount ?? media.episodeCount).map(String.init)),
                 DetailFact("First aired", media.releaseDate ?? media.releaseYear.map(String.init)),
             ])
+            if WatchProvidersSection.isAvailable { WatchProvidersSection(media: media) }
+            if RelatedTitlesSection.isAvailable { RelatedTitlesSection(media: media) }
         }
         .task { await state.load(media.route, services: services) }
         .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await state.refresh(media.route, services: services) } }

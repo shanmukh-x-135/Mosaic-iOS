@@ -10,6 +10,18 @@ enum MosaicRoute: Hashable {
     case list(UserList)
     case activity
     case settings
+    case franchise(String)
+    case season(CatalogMedia, Int)
+    case reviews
+    case diary
+    case stats
+    case mosaic(String?)
+    case recap(String)
+    case yourData
+    case credits
+    case importFlow
+    case ask(String?)
+    case exportData
 
     static func media(_ media: CatalogMedia) -> MosaicRoute { .media(media.route, MediaDetailPreview(media: media)) }
     static func media(_ item: LibraryItemDTO) -> MosaicRoute { .media(item.route, MediaDetailPreview(library: item)) }
@@ -101,5 +113,64 @@ final class LibraryStore {
     func seed(_ items: [LibraryItemDTO]) {
         entriesByKey = Dictionary(items.map { ($0.mediaKey, $0) }, uniquingKeysWith: { first, _ in first })
         state = .loaded(items)
+    }
+}
+
+/// Shared personal history, loaded lazily and replaced by mutation responses.
+@MainActor @Observable
+final class PersonalStateStore {
+    private(set) var state: Loadable<MosaicStateSnapshot> = .idle
+    private var task: Task<Void, Never>?
+    private var generation = 0
+
+    var snapshot: MosaicStateSnapshot? { state.value }
+
+    func load(_ services: MosaicServices) {
+        guard task == nil, snapshot == nil else { return }
+        start(services)
+    }
+
+    func refresh(_ services: MosaicServices) {
+        cancelLoad()
+        start(services)
+    }
+
+    private func start(_ services: MosaicServices) {
+        if snapshot == nil { state = .loading }
+        let generation = generation
+        task = Task { [weak self] in
+            guard let self else { return }
+            defer { if self.generation == generation { self.task = nil } }
+            do {
+                let snapshot = try await services.stateSnapshot()
+                try Task.checkCancellation()
+                guard self.generation == generation else { return }
+                self.state = .loaded(snapshot)
+            } catch {
+                guard self.generation == generation else { return }
+                if self.snapshot == nil {
+                    self.state = error is CancellationError ? .idle : .failed(error)
+                }
+            }
+        }
+    }
+
+    private func cancelLoad() {
+        generation += 1
+        task?.cancel()
+        task = nil
+    }
+
+    func apply(_ snapshot: MosaicStateSnapshot) {
+        cancelLoad()
+        state = .loaded(snapshot)
+    }
+
+    /// Fixture and test seeding only.
+    func seed(_ snapshot: MosaicStateSnapshot) { apply(snapshot) }
+
+    func handleStateChange(_ notification: Notification, services: MosaicServices) {
+        if let snapshot = notification.mosaicStateSnapshot { apply(snapshot) }
+        else if snapshot != nil { refresh(services) }
     }
 }

@@ -87,13 +87,17 @@ nonisolated enum MosaicVisualFixtures {
 
     static let seriesState: SeriesPersonalState = decode(#"{"status":"watching","isFavorite":true,"userRating":4.5,"episodes":[\#((1...10).map { #"{"seasonNumber":1,"episodeNumber":\#($0),"watchedAt":"2026-09-0\#(min($0, 9))T20:00:00.000Z","rating":null}"# }.joined(separator: ",")),{"seasonNumber":2,"episodeNumber":1,"watchedAt":"2026-10-01T20:00:00.000Z","rating":4},{"seasonNumber":2,"episodeNumber":2,"watchedAt":"2026-10-05T20:00:00.000Z","rating":null},{"seasonNumber":2,"episodeNumber":3,"watchedAt":"2026-10-11T20:00:00.000Z","rating":4.5}],"seasons":[{"seasonNumber":1,"state":"completed","completedOn":"2026-09-09","updatedAt":"2026-09-09T20:00:00.000Z"}]}"#, as: SeriesPersonalState.self)
 
-    static let snapshot: MosaicStateSnapshot = decode(#"""
-    {"library":[{"media":\#(json(succession)),"status":"watching"},{"media":\#(json(digger)),"status":"watched"}],
-     "ratings":[],"movieWatches":[{"media":\#(json(digger)),"watchedAt":"2026-10-08"}],
-     "episodeWatches":[{"series":\#(json(succession)),"watchedAt":"2026-10-11T20:00:00.000Z"}],
-     "gamePlaythroughs":[{"id":"00000000-0000-4000-8000-000000000001","media":\#(json(hades)),"status":"playing","platform":"PC","playtimeMinutes":245,"rating":4,"updatedAt":"2026-10-10T20:00:00.000Z"}],
-     "bookReadings":[{"id":"00000000-0000-4000-8000-000000000002","media":\#(json(leftHand)),"status":"reading","currentPage":96,"totalPages":304,"progressPercent":32,"updatedAt":"2026-10-09T09:00:00.000Z"}]}
-    """#, as: MosaicStateSnapshot.self)
+    static let snapshot = MosaicStateSnapshot(
+        watchRegion: "IN",
+        library: [.init(media: succession, status: "watching", isFavorite: true, updatedAt: "2026-10-11T20:00:00.000Z"), .init(media: digger, status: "watched", updatedAt: "2026-10-08T10:00:00.000Z")],
+        reviews: [.init(id: "review-1", media: digger, body: "A bright new chapter.", containsSpoilers: false, rating: 4, updatedAt: "2026-10-08T10:00:00.000Z")],
+        lists: lists,
+        movieWatches: [.init(media: digger, watchedAt: "2026-10-08", id: "movie-watch-1", rating: 4, viewingContext: "streaming")],
+        episodeWatches: [.init(series: succession, watchedAt: "2026-10-11T20:00:00.000Z", id: "episode-watch-1", seasonNumber: 2, episodeNumber: 3, rating: 4.5)],
+        seasonStates: [.init(id: "season-1", series: succession, seasonNumber: 1, state: "completed", provenance: "bulk_season", completedOn: "2026-09-09", updatedAt: "2026-09-09T20:00:00.000Z")],
+        gamePlaythroughs: [.init(id: "00000000-0000-4000-8000-000000000001", media: hades, status: "playing", platform: "PC", playtimeMinutes: 245, progressPercent: nil, rating: 4, updatedAt: "2026-10-10T20:00:00.000Z")],
+        bookReadings: [.init(id: "00000000-0000-4000-8000-000000000002", media: leftHand, status: "reading", currentPage: 96, totalPages: 304, progressPercent: 32, rating: nil, updatedAt: "2026-10-09T09:00:00.000Z")]
+    )
 
     static func episodes(season: Int) -> [CatalogEpisode] {
         let count = succession.seasonEpisodeCounts?[String(season)] ?? 0
@@ -123,6 +127,14 @@ nonisolated enum MosaicVisualFixtures {
             seriesState: { _ in try await personal(seriesState, empty: decode(#"{"status":null,"isFavorite":false,"userRating":null,"episodes":[],"seasons":[]}"#, as: SeriesPersonalState.self))() },
             mutate: { mutation in recordedMutations.append(mutation) },
             updateProfile: { _ in throw failure },
+            watchProviders: { _, _ in nil }, episodeRatings: { _ in [] },
+            mosaic: { _ in throw failure }, profileStats: { _ in throw failure }, importHistory: { [] },
+            importPreview: { _, _, _, _ in throw failure }, importApply: { _, _ in throw failure }, importUndo: { _ in throw failure },
+            exportArchive: { throw failure }, assistant: { _ in AsyncThrowingStream { $0.finish(throwing: failure) } },
+            publicList: { id in
+                guard let list = lists.first(where: { $0.id == id }) else { throw failure }
+                return list
+            },
             discover: { _ in if state == "error" { throw failure }; return discover },
             genre: { type, _ in CatalogSearchResponse(items: catalog.filter { $0.mediaType == type }, failures: []) },
             theme: { _, type in CatalogSearchResponse(items: catalog.filter { type == nil || $0.mediaType == type }, failures: []) },
@@ -153,11 +165,17 @@ nonisolated enum MosaicVisualFixtures {
 /// Hosts the real `AppShell` (or a single pushed screen) on fixture services.
 struct MosaicFixtureRoot: View {
     let configuration: MosaicVisualFixtures.Configuration
+    @State private var personalState = PersonalStateStore()
     @State private var session = SessionStore.fixture(user: CurrentUser(id: "fixture", profile: Profile(displayName: "Shan Mosaic", username: "shan", bio: "Watching, playing and reading in one place.", watchRegion: "IN")))
 
     var body: some View {
         content
             .environment(session)
+            .environment(personalState)
+            .onAppear {
+                if configuration.state == "loaded" { personalState.seed(MosaicVisualFixtures.snapshot) }
+                else if configuration.state == "empty" { personalState.seed(MosaicStateSnapshot()) }
+            }
             .dynamicTypeSize(configuration.accessibility ? .accessibility3 : .large)
     }
 
@@ -167,7 +185,7 @@ struct MosaicFixtureRoot: View {
         case "season":
             standalone(services) { SeasonExperienceView(series: MosaicVisualFixtures.succession, seasonNumber: 1) }
         default:
-            AppShell(services: services, router: router)
+            AppShell(services: services, router: router, personalState: personalState)
         }
     }
 
@@ -187,6 +205,16 @@ struct MosaicFixtureRoot: View {
         case "list": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.list(fixtures.lists[0])]])
         case "activity": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.activity]])
         case "settings": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.settings]])
+        case "franchise": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.franchise("dune")]])
+        case "credits": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.credits]])
+        case "stats": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.stats]])
+        case "reviews": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.reviews]])
+        case "mosaic": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.mosaic(nil)]])
+        case "recap": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.recap("2026")]])
+        case "ask": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.ask(nil)]])
+        case "yourdata": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.yourData]])
+        case "import": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.importFlow]])
+        case "export": return MosaicRouter(selectedTab: .profile, paths: [.profile: [.exportData]])
         case "quicklog":
             let router = MosaicRouter(selectedTab: .home)
             router.isQuickLogPresented = true

@@ -282,7 +282,9 @@ final class MosaicAlignmentTests: XCTestCase {
         XCTAssertNotNil(EditProfileView.validate(draft(name: "  ")))
         XCTAssertNotNil(EditProfileView.validate(draft(name: String(repeating: "a", count: 81))))
         XCTAssertNotNil(EditProfileView.validate(draft(username: "ab")))
-        XCTAssertNotNil(EditProfileView.validate(draft(username: "Name")))
+        // The server lowercases before matching, so mixed case is accepted.
+        XCTAssertNil(EditProfileView.validate(draft(username: "Name")))
+        XCTAssertNotNil(EditProfileView.validate(draft(username: "na me")))
         XCTAssertNotNil(EditProfileView.validate(draft(bio: String(repeating: "a", count: 501))))
         XCTAssertNotNil(EditProfileView.validate(draft(avatar: "http://example.com/me.jpg")))
         XCTAssertNotNil(EditProfileView.validate(draft(avatar: "not a url")))
