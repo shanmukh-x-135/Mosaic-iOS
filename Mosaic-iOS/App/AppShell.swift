@@ -60,7 +60,7 @@ extension View {
             case let .franchise(slug): FranchiseView(slug: slug)
             case let .season(series, number): SeasonExperienceView(series: series, seasonNumber: number)
             case .reviews: ReviewsListView()
-            case .diary: ActivityView()
+            case .diary: ActivityView(startsInDiary: true)
             case .stats: StatsView()
             case let .mosaic(period): MosaicUniverseView(period: period)
             case let .recap(period): RecapView(period: period)
