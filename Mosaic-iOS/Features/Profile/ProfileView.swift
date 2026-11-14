@@ -153,7 +153,7 @@ private struct ProfileIdentity: View {
     let profile: Profile?
     var body: some View {
         HStack(alignment: .center, spacing: MosaicSpace.medium) {
-            ProfileAvatar(url: profile?.avatarURL).frame(width: 72, height: 72)
+            MosaicAvatarView(value: profile?.avatar, name: profile?.displayName).frame(width: 72, height: 72)
             VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
                 MosaicEyebrow(title: "Your Mosaic")
                 Text(profile?.displayName ?? visibleUsername ?? "Your profile").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).lineLimit(2).accessibilityAddTraits(.isHeader)
@@ -168,33 +168,6 @@ private struct ProfileIdentity: View {
         .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
     private var visibleUsername: String? { profile?.username.flatMap { $0.hasPrefix("user_") ? nil : $0 } }
-}
-
-/// Remote avatars, or the web's bundled SVG presets, with a gradient fallback.
-/// Preset paths are relative to the web app, so they resolve against the API base.
-private struct ProfileAvatar: View {
-    let url: URL?
-    var body: some View {
-        Group {
-            if let resolved {
-                AsyncImage(url: resolved) { phase in
-                    if case let .success(image) = phase { image.resizable().scaledToFill() } else { placeholder }
-                }
-            } else { placeholder }
-        }
-        .clipShape(Circle())
-        .overlay { Circle().strokeBorder(MosaicColor.highlight) }
-        .accessibilityHidden(true)
-    }
-    private var resolved: URL? {
-        guard let url else { return nil }
-        if url.scheme == nil { return URL(string: url.relativeString, relativeTo: AppConfiguration.current.apiBaseURL)?.absoluteURL }
-        return url.pathExtension.lowercased() == "svg" ? nil : url
-    }
-    private var placeholder: some View {
-        LinearGradient(colors: [MosaicColor.accent, CatalogMediaType.tv.accent], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .overlay(Image(systemName: "person.fill").font(.title2).foregroundStyle(.white.opacity(0.9)))
-    }
 }
 
 private struct ProfileStat: View {

@@ -26,7 +26,8 @@ struct EditProfileView: View {
         Form {
             Section {
                 HStack(spacing: MosaicSpace.medium) {
-                    AvatarPreview(value: draft.avatar, initials: initials)
+                    MosaicAvatarView(value: draft.avatar, name: draft.displayName)
+                        .frame(width: 64, height: 64)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(displayNamePreview).font(.headline).foregroundStyle(MosaicColor.primaryText)
                         Text("@\(draft.username.isEmpty ? "username" : draft.username)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText)
@@ -108,6 +109,7 @@ struct EditProfileView: View {
         }
     }
 
+    /// Presets render from bundled vector assets through the shared avatar view.
     private var presetGrid: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: MosaicSpace.small) {
@@ -116,10 +118,7 @@ struct EditProfileView: View {
                         draft.avatar = preset.path
                     } label: {
                         VStack(spacing: 4) {
-                            ZStack {
-                                Circle().fill(LinearGradient(colors: [MosaicColor.accent, CatalogMediaType.tv.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                Text(String(preset.name.prefix(1))).font(.headline).foregroundStyle(.white)
-                            }
+                            MosaicAvatarView(value: preset.path, name: preset.name)
                             .frame(width: 44, height: 44)
                             .overlay { Circle().strokeBorder(draft.avatar == preset.path ? MosaicColor.accent : MosaicColor.border, lineWidth: 2) }
                             Text(preset.name).font(.caption2).foregroundStyle(MosaicColor.secondaryText)
@@ -137,11 +136,6 @@ struct EditProfileView: View {
     private var displayNamePreview: String {
         let trimmed = draft.displayName.trimmingCharacters(in: .whitespaces)
         return trimmed.isEmpty ? "Your name" : trimmed
-    }
-
-    private var initials: String {
-        let name = draft.displayName.trimmingCharacters(in: .whitespaces)
-        return name.first.map { String($0).uppercased() } ?? "M"
     }
 
     private func save() {
@@ -185,33 +179,5 @@ struct EditProfileView: View {
             if scheme.lowercased() != "https" { return "Image links must use https://." }
         }
         return nil
-    }
-}
-
-/// A local preview of the chosen avatar. Bundled web SVGs cannot render in
-/// `AsyncImage`, so presets show the same gradient placeholder the profile uses.
-private struct AvatarPreview: View {
-    let value: String
-    let initials: String
-
-    var body: some View {
-        Group {
-            if value.hasPrefix("https://"), let url = URL(string: value), url.pathExtension.lowercased() != "svg" {
-                AsyncImage(url: url) { phase in
-                    if case let .success(image) = phase { image.resizable().scaledToFill() } else { placeholder }
-                }
-            } else { placeholder }
-        }
-        .frame(width: 64, height: 64)
-        .clipShape(Circle())
-        .overlay { Circle().strokeBorder(MosaicColor.highlight) }
-        .accessibilityHidden(true)
-    }
-
-    private var placeholder: some View {
-        ZStack {
-            LinearGradient(colors: [MosaicColor.accent, CatalogMediaType.tv.accent], startPoint: .topLeading, endPoint: .bottomTrailing)
-            Text(initials).font(.title2.weight(.bold)).foregroundStyle(.white)
-        }
     }
 }
