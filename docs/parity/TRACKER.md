@@ -28,8 +28,8 @@ Last updated: 2026-11-14 — plan approved; M0, TB1, TB2 under way.
 | --- | --- | --- | --- | --- | --- | --- |
 | T0.1 | Complete command model | Codex | P1 | Completed | 88/88 on integration (28 new) | Reviewed; merged `7fa45c2` |
 | T0.2 | Networking hardening, upload/download/NDJSON | Codex | P1 | Completed | 102/102 (14 new) | Two review rounds (400 mapping, timeouts; simulator file protection); merged `3ee5f33` |
-| T0.3 | PersonalStateStore | Codex | T0.1, T0.2 | Delegated | — | — |
-| T0.4 | Contract-first scaffolding | Codex | T0.3 | Planned | — | — |
+| T0.3 | PersonalStateStore | Codex | T0.1, T0.2 | Completed | 110/110 (8 new) | Reviewed; merged `2b16637` |
+| T0.4 | Contract-first scaffolding (split: T0.4a models/services → T0.4b routes/placeholders) | Codex | T0.3 | T0.4a delegated | — | — |
 | T1.1 | Related titles section | Codex | T0.4 | Planned | — | — |
 | T1.2 | Where to watch | Codex | T0.4 | Planned | — | — |
 | T1.3 | Episode ratings heatmap | Codex | T0.4 | Planned | — | — |
@@ -64,3 +64,4 @@ Last updated: 2026-11-14 — plan approved; M0, TB1, TB2 under way.
 | 2026-11-14 | Plan approved. Decisions D1 3D, D2 build AI, D3 defer, D4 B2, D5 TestFlight. `iPhone 17` simulator created. |
 | 2026-11-14 | Baseline suite run: 59/60; fixed a wrong username assertion (`8e2b716`). T0.1 merged (88/88). TB1 committed. Server has 20 commands, not 22 (docs corrected). |
 | 2026-11-14 | T0.2 merged (102/102). Web `main` → `9ccbee0` pushed; Vercel production deploy succeeded via Git integration (Vercel CLI token is expired). `docs/mobile-api.md` synced. T0.3 delegated. |
+| 2026-11-14 | T0.3 merged (110/110). T0.4 split into T0.4a (models, services) and T0.4b (routes, placeholders, slots); T0.4a delegated. |
