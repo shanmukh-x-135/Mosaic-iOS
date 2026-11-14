@@ -17,6 +17,8 @@ struct MediaLogForm: View {
     @State private var draft = Draft()
     @State private var isSaving = false
     @State private var failure: String?
+    @State private var movieLogSaved = false
+    @State private var favoriteWasEdited = false
 
     static func actionTitle(for mediaType: CatalogMediaType) -> String {
         switch mediaType {
@@ -30,6 +32,9 @@ struct MediaLogForm: View {
     struct Draft: Equatable {
         var date = Date.now
         var isRewatch = false
+        var viewingContext: MovieViewingContext?
+        var streamingService = ""
+        var isFavorite = false
         var rating: Double?
         var review = ""
         var status = ""
@@ -42,6 +47,11 @@ struct MediaLogForm: View {
         var episode = 1
         var playthroughID: String?
         var readingID: String?
+
+        mutating func prefillFavorite(from entry: LibraryItemDTO?, userChanged: Bool) {
+            guard !userChanged else { return }
+            isFavorite = entry?.isFavorite ?? false
+        }
     }
 
     var body: some View {
@@ -54,6 +64,7 @@ struct MediaLogForm: View {
                 Section { HStack { ProgressView(); Text("Loading your saved progress…").foregroundStyle(MosaicColor.secondaryText) } }
             } else {
                 fields
+                    .disabled(media.mediaType == .movie && (isSaving || movieLogSaved))
             }
             if let message = validationMessage { Section { MosaicNotice(text: message, tone: .failure) } }
             if let failure { Section { MosaicNotice(text: failure, tone: .failure) } }
@@ -65,7 +76,7 @@ struct MediaLogForm: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             ToolbarItem(placement: .confirmationAction) {
-                Button(isSaving ? "Saving…" : "Save", action: save).disabled(!canSave)
+                Button(isSaving ? "Saving…" : movieLogSaved ? "Retry favourite" : "Save", action: save).disabled(!canSave)
             }
         }
         .task { await prepare() }
@@ -73,12 +84,17 @@ struct MediaLogForm: View {
     }
 
     private var canSave: Bool {
-        if isSaving || validationMessage != nil { return false }
-        if needsRecords, libraryState.value == nil { return false }
+        Self.canSave(draft, mediaType: media.mediaType, libraryState: libraryState, isSaving: isSaving)
+    }
+
+    static func canSave(_ draft: Draft, mediaType: CatalogMediaType, libraryState: Loadable<[LibraryItemDTO]>, isSaving: Bool) -> Bool {
+        if isSaving || validate(draft, mediaType: mediaType) != nil { return false }
+        if mediaType == .game || mediaType == .book, libraryState.value == nil { return false }
         return true
     }
 
     private var needsRecords: Bool { media.mediaType == .game || media.mediaType == .book }
+    private var alreadyFavorite: Bool { libraryState.value?.first { $0.mediaKey == media.mediaKey }?.isFavorite == true }
 
     @ViewBuilder private var fields: some View {
         switch media.mediaType {
@@ -86,6 +102,25 @@ struct MediaLogForm: View {
             Section("When") {
                 DatePicker("Watched on", selection: $draft.date, in: ...Date.now, displayedComponents: .date)
                 Toggle("Rewatch", isOn: $draft.isRewatch)
+            }
+            Section("Viewing") {
+                Picker("Viewing context", selection: $draft.viewingContext) {
+                    Text("Not specified").tag(MovieViewingContext?.none)
+                    ForEach(MovieViewingContext.allCases, id: \.self) { context in
+                        Text(context.label).tag(Optional(context))
+                    }
+                }
+                if draft.viewingContext == .streaming {
+                    LabeledContent("Streaming service") {
+                        TextField("Optional", text: $draft.streamingService)
+                            .multilineTextAlignment(.trailing)
+                            .accessibilityLabel("Streaming service")
+                    }
+                }
+                Toggle("Mark as favourite", isOn: Binding(
+                    get: { draft.isFavorite },
+                    set: { draft.isFavorite = $0; favoriteWasEdited = true }
+                ))
             }
             ratingSection
             Section("Review") { TextField("Optional", text: $draft.review, axis: .vertical).lineLimit(3...6) }
@@ -168,10 +203,20 @@ struct MediaLogForm: View {
             if !current.isEmpty, (Int(current) ?? -1) < 0 { return "Current page must be a whole number." }
             if !total.isEmpty, (Int(total) ?? 0) <= 0 { return "Total pages must be a positive whole number." }
             if let page = Int(current), let pages = Int(total), page > pages { return "Current page cannot exceed total pages." }
-        case .movie, .tv:
+        case .movie:
+            return streamingServiceValidation(draft.streamingService, viewingContext: draft.viewingContext)
+        case .tv:
             break
         }
         return nil
+    }
+
+    static func streamingServiceValidation(_ service: String, viewingContext: MovieViewingContext?) -> String? {
+        viewingContext == .streaming && service.count > 120 ? "Streaming service must be 120 characters or fewer." : nil
+    }
+
+    static func shouldSendFavoriteFollowUp(isOn: Bool, alreadyFavorite: Bool) -> Bool {
+        isOn && !alreadyFavorite
     }
 
     static func mutation(for draft: Draft, media: CatalogMedia) -> DetailMutation {
@@ -179,7 +224,7 @@ struct MediaLogForm: View {
         switch media.mediaType {
         case .movie:
             let review = draft.review.trimmingCharacters(in: .whitespacesAndNewlines)
-            return .movieLog(media, watchedAt: draft.date, isRewatch: draft.isRewatch, rating: draft.rating, review: review.isEmpty ? nil : review)
+            return .movieLog(media, watchedAt: draft.date, isRewatch: draft.isRewatch, rating: draft.rating, review: review.isEmpty ? nil : review, viewingContext: draft.viewingContext, streamingService: draft.streamingService)
         case .tv:
             return .episodeLog(media, season: draft.season, episode: draft.episode, watchedAt: draft.date, rating: draft.rating)
         case .game:
@@ -202,6 +247,7 @@ struct MediaLogForm: View {
         switch media.mediaType {
         case .movie:
             draft.isRewatch = libraryStatus == LibraryStatus.watched.rawValue
+            draft.isFavorite = entry?.isFavorite ?? false
         case .tv:
             if let next = SeriesProgress.nextEpisode(media: media, watched: seriesState?.watchedCoordinates ?? []) { draft.season = next.season; draft.episode = next.episode }
         case .game:
@@ -230,6 +276,21 @@ struct MediaLogForm: View {
 
     private func prepare() async {
         guard case .idle = libraryState else { return }
+        if media.mediaType == .movie {
+            // Movie logging is available immediately; this read only seeds the favourite toggle.
+            libraryState = .loading
+            do {
+                let items = try await services.library()
+                libraryState = .loaded(items)
+                if !isSaving && !movieLogSaved {
+                    draft.prefillFavorite(from: items.first { $0.mediaKey == media.mediaKey }, userChanged: favoriteWasEdited)
+                }
+            } catch {
+                // An unknown favourite is treated as false, without blocking a watch.
+                libraryState = .failed(error)
+            }
+            return
+        }
         if media.mediaType == .tv { seriesState = try? await services.seriesState(media.route) }
         if needsRecords {
             libraryState = .loading
@@ -246,15 +307,24 @@ struct MediaLogForm: View {
 
     private func save() {
         // Never fall back to creating a new record when the existing one couldn't be read.
-        if needsRecords, case .failed = libraryState { return }
+        guard canSave else { return }
         isSaving = true; failure = nil
         Task {
             do {
-                try await services.mutate(Self.mutation(for: draft, media: media))
+                if !movieLogSaved {
+                    try await services.mutate(Self.mutation(for: draft, media: media))
+                    if media.mediaType == .movie { movieLogSaved = true }
+                }
+                if media.mediaType == .movie,
+                   Self.shouldSendFavoriteFollowUp(isOn: draft.isFavorite, alreadyFavorite: alreadyFavorite) {
+                    try await services.mutate(.library(media, status: "watched", isFavorite: true))
+                }
                 onSaved()
                 dismiss()
             } catch {
-                failure = "Mosaic couldn’t save that. Your previous progress is unchanged. Try again."
+                failure = movieLogSaved
+                    ? "Your watch was saved, but Mosaic couldn’t mark it as a favourite. Try again."
+                    : "Mosaic couldn’t save that. Your previous progress is unchanged. Try again."
             }
             isSaving = false
         }

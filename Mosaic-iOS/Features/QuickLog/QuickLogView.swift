@@ -8,6 +8,7 @@ struct QuickLogView: View {
 
 private struct QuickLogFlow: View {
     @State private var model: SearchViewModel
+    @Environment(LibraryStore.self) private var library
     @Environment(\.dismiss) private var dismiss
 
     init(services: MosaicServices) {
@@ -42,6 +43,21 @@ private struct QuickLogFlow: View {
     @ViewBuilder private var results: some View {
         switch model.state {
         case .noQuery, .minimumQuery:
+            if model.query.trimmingCharacters(in: .whitespacesAndNewlines).count < 2 {
+                let choices = QuickLogChoices.recentChoices(from: library.items, filter: model.filter)
+                if !choices.isEmpty {
+                    Section("Recent") {
+                        ForEach(choices) { item in
+                            NavigationLink(value: CatalogMedia(identity: item)) {
+                                MosaicMediaRow(summary: MosaicMediaSummary(item), lines: ["From your library"], showsMedium: false, thumbnailWidth: 44)
+                            }
+                            .listRowBackground(Color.clear)
+                            .accessibilityLabel("Log \(item.title)")
+                            .accessibilityHint("Loads title details and opens the log form")
+                        }
+                    }
+                }
+            }
             row { MosaicStateMessage(title: "Start with a title", message: "Search \(model.filter.title.lowercased()) by name, then fill in what you watched, played or read.", systemImage: "magnifyingglass") }
         case .loading:
             row { HStack { Spacer(); ProgressView("Searching \(model.filter.title.lowercased())"); Spacer() }.padding(.vertical, MosaicSpace.xLarge) }
@@ -62,6 +78,21 @@ private struct QuickLogFlow: View {
 
     private func row<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         content().listRowInsets(EdgeInsets()).listRowBackground(Color.clear).listRowSeparator(.hidden)
+    }
+}
+
+enum QuickLogChoices {
+    static func recentChoices(from items: [LibraryItemDTO], filter: CatalogFilter = .all) -> [LibraryItemDTO] {
+        var seen = Set<String>()
+        return Array(items.enumerated()
+            .filter { filter.mediaType == nil || $0.element.mediaType == filter.mediaType }
+            .sorted {
+                if $0.element.updatedAt == $1.element.updatedAt { return $0.offset < $1.offset }
+                return $0.element.updatedAt > $1.element.updatedAt
+            }
+            .map(\.element)
+            .filter { seen.insert($0.mediaKey).inserted }
+            .prefix(8))
     }
 }
 
