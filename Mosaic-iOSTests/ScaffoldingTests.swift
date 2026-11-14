@@ -9,9 +9,11 @@ final class ScaffoldingTests: XCTestCase {
         let shipped = [ // M1
             RelatedTitlesSection.isAvailable, WatchProvidersSection.isAvailable, EpisodeRatingsSection.isAvailable,
             FranchiseLink.isAvailable, FranchiseView.isAvailable, CreditsView.isAvailable,
+            // M2
+            MovieHistorySection.isAvailable, ReviewButton.isAvailable, ReviewSection.isAvailable,
         ]
         let pending = [
-            MovieHistorySection.isAvailable, AskAboutButton.isAvailable, ReviewButton.isAvailable, ReviewSection.isAvailable,
+            AskAboutButton.isAvailable,
             AddToListButton.isAvailable, StatsView.isAvailable, ReviewsListView.isAvailable, MosaicUniverseView.isAvailable,
             RecapView.isAvailable, AskView.isAvailable, YourDataView.isAvailable, ExportDataView.isAvailable, ImportFlowView.isAvailable,
         ]
