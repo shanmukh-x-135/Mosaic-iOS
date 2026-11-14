@@ -11,10 +11,12 @@ final class ScaffoldingTests: XCTestCase {
             FranchiseLink.isAvailable, FranchiseView.isAvailable, CreditsView.isAvailable,
             // M2
             MovieHistorySection.isAvailable, ReviewButton.isAvailable, ReviewSection.isAvailable,
+            // M3
+            AddToListButton.isAvailable,
         ]
         let pending = [
             AskAboutButton.isAvailable,
-            AddToListButton.isAvailable, StatsView.isAvailable, ReviewsListView.isAvailable, MosaicUniverseView.isAvailable,
+            StatsView.isAvailable, ReviewsListView.isAvailable, MosaicUniverseView.isAvailable,
             RecapView.isAvailable, AskView.isAvailable, YourDataView.isAvailable, ExportDataView.isAvailable, ImportFlowView.isAvailable,
         ]
         XCTAssertEqual(shipped.count + pending.count, 19)

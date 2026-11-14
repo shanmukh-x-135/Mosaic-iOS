@@ -5,7 +5,7 @@ Implemented · Testing · Review required · Completed · Blocked.
 Agent: `codex:codex-rescue` unless noted. Updated after every delegation,
 review and merge.
 
-Last updated: 2026-11-15 — M2 complete and merged to main; M3 awaiting approval.
+Last updated: 2026-11-15 — M3 complete and merged to main; M4 approved and in progress.
 
 ## Prerequisites and decisions
 
@@ -38,12 +38,12 @@ Last updated: 2026-11-15 — M2 complete and merged to main; M3 awaiting approva
 | T2.1 | Logging completeness (viewing context, favourite, recents) | Codex | T0.4 | Completed | 176/176 on integration | Reviewed (1 round: movie logging must not block on Library); merged in M2 |
 | T2.2 | Movie watch history + editor | Codex | T0.4 | Completed | 176/176 on integration | Reviewed; merged in M2 |
 | T2.3 | Reviews | Codex | T0.4 | Completed | 176/176 on integration | Reviewed; merged in M2 |
-| T3.1 | List creation and editor | Codex | T0.4 | Ready for delegation | — | — |
-| T3.2 | Add to list from detail | Codex | T0.4 | Ready for delegation | — | — |
-| T4.1 | Full activity, filters, movie diary | Codex | T2.2 | Planned | — | — |
-| T4.2 | Profile structure | Codex | T4.4 | Planned | — | — |
-| T4.3 | Stats screen | Codex | T0.4, TB2 deployed | Ready for delegation | — | — |
-| T4.4 | Avatar preset assets | Codex | T0.4 | Ready for delegation | — | — |
+| T3.1 | List creation and editor | Codex | T0.4 | Completed | 188/188 on integration | Reviewed; merged in M3 |
+| T3.2 | Add to list from detail | Codex | T0.4 | Completed | 188/188 on integration | Reviewed; merged in M3 |
+| T4.1 | Full activity, filters, movie diary | Codex | T2.2 | Delegated | — | — |
+| T4.2 | Profile structure | Codex | T4.4 | Delegated | — | — |
+| T4.3 | Stats screen | Codex | T0.4, TB2 deployed | Delegated | — | — |
+| T4.4 | Avatar preset assets | Codex | T0.4 | Implemented | full suite green on branch | Reviewed; awaiting M4 merge |
 | T5.1 | Your Mosaic | Codex | T0.4, D1 | Ready for delegation | — | — |
 | T5.2 | Recap | Codex | T0.4 | Ready for delegation | — | — |
 | T6.1 | Email sign-in and sign-up | Codex | T0.4 | Ready for delegation | — | — |
@@ -70,3 +70,4 @@ Last updated: 2026-11-15 — M2 complete and merged to main; M3 awaiting approva
 | 2026-11-14 | M1 complete: related titles, where to watch, episode ratings heatmap, franchise + credits, brand marks/game credits. 152/152. Merged to `main`. Follow-up: `CatalogMedia` lacks `developerLogoUrl`/`publisherLogoUrl` (names shown, no logos) — add in M9. Fixture catalog lacks franchise titles (loaded state verified by unit tests only). |
 | 2026-11-14 | M2 approved; T2.1, T2.2, T2.3 delegated in parallel. |
 | 2026-11-15 | M2 complete: viewing context, favourite on log, Quick Log recents, movie watch history with edit/delete, reviews. 176/176. Merged to `main`. Polish for M9: personal panel buttons wrap to three rows with the Review button; Review button stays disabled if the state load fails (no retry until relaunch). |
+| 2026-11-15 | M3 complete: list creation and editor, add to list from detail. 188/188. Merged to `main`. M4 approved; T4.1–T4.4 under way. |
