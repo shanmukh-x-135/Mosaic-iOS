@@ -27,8 +27,8 @@ Last updated: 2026-11-14 — plan approved; M0, TB1, TB2 under way.
 | Task ID | Description | Assigned agent | Dependencies | Status | Test results | Review |
 | --- | --- | --- | --- | --- | --- | --- |
 | T0.1 | Complete command model | Codex | P1 | Completed | 88/88 on integration (28 new) | Reviewed; merged `7fa45c2` |
-| T0.2 | Networking hardening, upload/download/NDJSON | Codex | P1 | Review required | — | Sent back: 400 legacy mapping, mutation timeout |
-| T0.3 | PersonalStateStore | Codex | T0.1, T0.2 | Planned | — | — |
+| T0.2 | Networking hardening, upload/download/NDJSON | Codex | P1 | Completed | 102/102 (14 new) | Two review rounds (400 mapping, timeouts; simulator file protection); merged `3ee5f33` |
+| T0.3 | PersonalStateStore | Codex | T0.1, T0.2 | Delegated | — | — |
 | T0.4 | Contract-first scaffolding | Codex | T0.3 | Planned | — | — |
 | T1.1 | Related titles section | Codex | T0.4 | Planned | — | — |
 | T1.2 | Where to watch | Codex | T0.4 | Planned | — | — |
@@ -47,8 +47,8 @@ Last updated: 2026-11-14 — plan approved; M0, TB1, TB2 under way.
 | T5.1 | Your Mosaic | Codex | T0.4, D1 | Planned | — | — |
 | T5.2 | Recap | Codex | T0.4 | Planned | — | — |
 | T6.1 | Email sign-in and sign-up | Codex | T0.4 | Planned | — | — |
-| TB1 | [web] Bearer auth for imports/export | Codex | P4 | Implemented | web lint, typecheck clean; 313/313 | Reviewed; committed `f8105c5` on `feat/mobile-data-endpoints`; deploy pending |
-| TB2 | [web] Profile stats endpoint | Codex | P4, D4 | Delegated | — | — |
+| TB1 | [web] Bearer auth for imports/export | Codex | P4 | Completed | lint, typecheck clean; 313/313 | `f8105c5` on web `main`; deployed, invalid Bearer → 401 |
+| TB2 | [web] Profile stats endpoint | Codex | P4, D4 | Completed | lint, typecheck, build clean; 330/330 | `9ccbee0` on web `main`; deployed, 401 envelope verified |
 | T6.2 | Export | Codex | TB1 deployed | Planned | — | — |
 | T6.3 | Import: upload, preview, apply | Codex | TB1 deployed | Planned | — | — |
 | T6.4 | Import: reconciliation, history, undo | Codex | T6.3 | Planned | — | — |
@@ -63,3 +63,4 @@ Last updated: 2026-11-14 — plan approved; M0, TB1, TB2 under way.
 | 2026-11-14 | Reconnaissance of both repos; baseline `build-for-testing` succeeded (60 tests compile, not run: no simulator runtime). Plan, task cards and tracker written. |
 | 2026-11-14 | Plan approved. Decisions D1 3D, D2 build AI, D3 defer, D4 B2, D5 TestFlight. `iPhone 17` simulator created. |
 | 2026-11-14 | Baseline suite run: 59/60; fixed a wrong username assertion (`8e2b716`). T0.1 merged (88/88). TB1 committed. Server has 20 commands, not 22 (docs corrected). |
+| 2026-11-14 | T0.2 merged (102/102). Web `main` → `9ccbee0` pushed; Vercel production deploy succeeded via Git integration (Vercel CLI token is expired). `docs/mobile-api.md` synced. T0.3 delegated. |

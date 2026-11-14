@@ -12,7 +12,8 @@ logged, persisted by Mosaic, or sent in query strings.
 
 ## Contract conventions
 
-All endpoints return JSON. New and normalized private endpoints use this
+Endpoints return JSON unless documented otherwise (account export returns ZIP).
+New and normalized private endpoints use this
 failure envelope:
 
 ```json
@@ -27,7 +28,7 @@ failure envelope:
 Supported codes are `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`,
 `VALIDATION_ERROR`, `CONFLICT`, `PROVIDER_UNAVAILABLE`, and `INTERNAL_ERROR`.
 Clients must use the code for control flow and show the message as a safe,
-human-readable fallback. Current older catalog/import/list routes retain their
+human-readable fallback. Import/export, public list detail, and ancillary catalog routes retain their
 existing string error shape until their contracts are individually normalized.
 
 Mosaic intentionally does not use a `/v1` path today: these routes evolve
@@ -45,11 +46,58 @@ backward-compatibly and the existing web API remains their source of truth.
 | Activity/diary | `GET /api/me/activity?limit=50` | `{ items: ActivityEvent[] }` | `limit` is 1–100; returned events are newest first. |
 | Lists | `GET /api/me/lists` | `{ items: UserList[] }` | Cross-media list order is the item `position`. |
 | Stats | `GET /api/me/stats` | `MosaicAnalytics` | Rebuildable projection; no derived analytics row is mutable. |
+| Profile Stats | `GET /api/me/profile-stats?period=all` | `{ stats: ProfileStats, years: number[] }` | Same numbers as the web Profile → Stats tab; optional all-time or year filter. |
 | Mutations/logging | `POST /api/me/state` | updated `MosaicState` | The existing web mutation contract is the validated shared command surface below. |
+| Import preview | `POST /api/me/imports/preview` | `ImportPreview` plus staged `jobId` | Raw upload; `?dryRun=1` skips staging. See [Import and export](#import-and-export). |
+| Apply import | `POST /api/me/imports/:jobId/apply` | `{ imported, skipped, conflicts, wasReimport, failed }` | 200, or 207 when records fail. |
+| Undo import | `POST /api/me/imports/:jobId/undo` | `{ removed, preserved, missing }` | Preserves later edits. |
+| Import history | `GET /api/me/imports` | `{ jobs: ImportHistoryItem[] }` | Latest 50 jobs, newest first. |
+| Account export | `GET /api/me/export` | ZIP archive | Private download with `Content-Disposition`. |
 
 `GET /api/me/state` remains a web-compatible full snapshot endpoint. Native
 screens should prefer the concise endpoint for their use case. `GET
 /api/me/media-state` remains available for compact card synchronization.
+
+### Profile Stats (`GET /api/me/profile-stats`)
+
+Requires a verified Bearer token or browser cookie session. The optional
+`period` query is `all` (also the default when omitted) or a four-digit year
+from 1900 through 2100 inclusive. Success returns `{ stats: ProfileStats,
+years: number[] }` with `Cache-Control: private, max-age=0, must-revalidate`.
+`years` contains the distinct years of movie watches and episode logs, newest
+first, independent of the requested period; it is empty without dated history.
+
+`ProfileStats` comes directly from `src/lib/analytics/stats.ts`:
+
+| Field | Shape |
+| --- | --- |
+| `period` | `{ kind: "all" }` or `{ kind: "year", year: number }` |
+| `movie` | `watchLogs`, `uniqueTitles`, `rewatchLogs` (numbers), `recent: CatalogMedia[]`, optional `mostRewatched: { media: CatalogMedia, count: number }` |
+| `series` | `episodeLogs`, `uniqueEpisodes`, `rewatchLogs`, `shows` (numbers), `recent: CatalogMedia[]`, `mostLogged: { media: CatalogMedia, count: number }[]`, `status: { watching, paused, completed, dropped, watchlist }` (numeric counts) |
+| `game` | `completedPlaythroughs`, `recordedPlaytimeMinutes` (numbers), `statuses: { playing, paused, completed, dropped, backlog }` (numeric counts), `completed: CatalogMedia[]` |
+| `book` | `finished` (number), `statuses: { reading, paused, finished, dnf, want_to_read }` (numeric counts), `finishedTitles: CatalogMedia[]`, `authors: { name: string, count: number }[]` |
+| `ratings` | `population: "all" \| "logged-in-period"`, `count` (number), optional `average` (number), `distribution: { value: number, count: number }[]`, `byMedium` (keys `movie`, `series`, `game`, `book`, each `{ count: number, average?: number }`), `top: { media: CatalogMedia, value: number }[]` |
+| `genres` | Keys `movie`, `series`, `game`, `book`, each `{ titles: number, withGenres: number, top: { name: string, count: number }[] }` |
+| `activity` | Keys `movie`, `series`, each `{ unit: string, granularity: "month" \| "year", buckets: ActivityBucket[], total: number, peak?: ActivityBucket, weekdays: number[] }`; `ActivityBucket` is `{ key: string, label: string, count: number }` |
+
+Media objects use the existing normalized `CatalogMedia` domain union.
+Unavailable optional fields are omitted. Ratings use the 0.5–5 scale, with ten
+half-star distribution buckets. Activity weekdays run Sunday (index 0) through
+Saturday (index 6), in UTC; units are `film watches` and `episodes logged`.
+
+Numbers equal the web **Profile → Stats** tab for the same state and period:
+both use `deriveProfileStats` and `statsYears`. Years filter dated movie and
+episode history; game/book progress and current statuses remain current state.
+Year-scoped ratings include only films and series logged in that year.
+`GET /api/me/stats` continues to return its existing `MosaicAnalytics` contract.
+
+Errors use the standard `{ error: { code, message } }` envelope:
+
+| Status | Code | Message |
+| --- | --- | --- |
+| 400 | `VALIDATION_ERROR` | `Period must be "all" or a four-digit year.` |
+| 401 | `UNAUTHORIZED` | `Authentication required.` |
+| 500 | `INTERNAL_ERROR` | `Your stats could not be loaded.` |
 
 ### `ContinueItem`
 
@@ -505,10 +553,13 @@ Milestone 2 contract.
 
 ## Mosaic AI assistant (`POST /api/me/assistant`)
 
-A read-only assistant over the caller's own records. It is web-only for now:
-iOS should not ship against it until production enablement is approved, but the
-contract below is designed so a native client needs no business logic of its own.
-The model key never leaves the server.
+A read-only assistant over the caller's own records, used by the web and the
+native iOS app (approved for iOS on 2026-11-14). The contract below is designed
+so a native client needs no business logic of its own. Access is still governed
+by the server kill switch and private-beta allowlist: clients must treat 403
+`FORBIDDEN` as "not available to this account" and hide their entry points, and
+503 `ASSISTANT_UNAVAILABLE` as temporarily unavailable. The model key never
+leaves the server.
 
 **Auth and availability.** Cookie or Bearer, exactly like the other `/api/me/*`
 routes. The server-side kill switch (`MOSAIC_AI_ENABLED`, off by default) and the
@@ -561,14 +612,126 @@ playthrough or reading records, progress comes from the most recent and records
 are never added together. Reviews, notes, list descriptions and catalog
 descriptions are never sent to the model.
 
+## Import and export
+
+These five routes accept a browser cookie session or a verified Supabase
+`Authorization: Bearer <access-token>` in live mode. Queries and RPCs use the
+authenticated principal's client with existing ownership filters and RLS.
+Their errors retain the **legacy string shape**, such as
+`{ "error": "Authentication required." }` (401); they do not use the normalized
+error envelope above. Apply and undo validate the job UUID before authentication,
+so a malformed job ID returns 400 even without credentials.
+
+### Preview (`POST /api/me/imports/preview`)
+
+Send the raw file bytes, rather than multipart form data, with these headers:
+
+| Header | Contract |
+| --- | --- |
+| `Content-Type` | Match the selected source: Letterboxd ZIP accepts `application/zip`, `application/x-zip-compressed`, or `application/octet-stream`; normalized Serializd JSON accepts `application/json`, `text/json`, or `application/octet-stream`; CSV accepts `text/csv`, `application/csv`, or `application/vnd.ms-excel`. The parser also permits an absent MIME type. |
+| `x-import-source` | One of `letterboxd`, `backloggd`, `serializd`, `serializd_normalized_v1`, `fable`, `generic_movies`, `generic_series`, `generic_games`, `generic_books`. |
+| `x-file-name` | Percent-encoded filename, e.g. `My%20movies.csv`. The server decodes it, strips directory components, and limits it to 255 characters. Use `.zip` for Letterboxd, `.json` for normalized Serializd, and `.csv` for other sources. |
+
+`backloggd`, `serializd`, and `fable` are source-labelled Mosaic CSV fallbacks,
+not native platform export formats. `serializd_normalized_v1` is the validated,
+versioned JSON contract described in [Importing into Mosaic](imports.md).
+
+Uploads are limited to 12 × 1024 × 1024 bytes (12 MB), checked against both
+declared length and streamed bytes; oversized bodies return 413. Unsupported
+source or missing/invalid filename returns 400; mismatched extension/MIME type
+returns 415; an empty body returns 400. Normalized Serializd validation failures
+return 422 with `{ error: "The normalized Serializd v1 file failed validation.",
+errors: ImportRowError[] }`. Other parser errors appear in the preview.
+
+A successful response is 200 with `ImportPreview`:
+
+```ts
+{
+  source: ImportSource;
+  filename: string;
+  rows: ReconciliationRow[];
+  counts: ImportPreviewCounts;
+  errors: ImportRowError[];
+  warnings: string[];
+  normalizedSummary?: Record<string, number>;
+  jobId?: string;
+}
+```
+
+The exact shared types live in `src/lib/imports/types.ts`. Rows contain the
+normalized `record`, provider `match` with candidates, `decision`
+(`accepted | review | skipped`), and optional selected `CatalogMedia`.
+Counts cover matches, review/unmatched rows, affected domains, duplicates,
+invalid rows, and skipped rows. In live mode a normal preview stages the job
+and records and returns `jobId`; staging/provenance failures return 500.
+`?dryRun=1` still authenticates and reconciles (and checks provenance for
+normalized Serializd), but creates no job and returns no `jobId`.
+Mock mode preserves its stateless preview without live authentication or a job.
+
+### Apply (`POST /api/me/imports/:jobId/apply`)
+
+Send `Content-Type: application/json` with:
+
+```ts
+{
+  conflictPolicy: "keep_mosaic" | "use_imported" | "review";
+  importFavorites: boolean; // defaults to true when omitted
+  resolutions: {
+    sourceRecordKey: string;
+    decision: "accepted" | "review" | "skipped";
+    selected?: CatalogMedia;
+  }[];
+}
+```
+
+Accepted rows require `selected`, validated against the shared catalog schema.
+There can be at most 20,000 resolutions; keys must be 1–512 characters. Every
+stored job row must have one unique decision; selected media types must match
+their source row. A `review` decision is accepted by the schema but blocks
+application with 409 until resolved or skipped. Invalid decisions, duplicate
+keys, foreign keys, and type mismatches return 400; missing decisions return
+409. Jobs must be in `needs_review`, `ready`, `failed`, or `completed` state;
+other states return 409. Missing/unowned jobs return 404. Record-loading or
+job-start failures return 500.
+
+The response is `{ imported: number, skipped: number, conflicts: number,
+wasReimport: boolean, failed: number }`. It returns 200 when no record failed,
+or 207 when one or more records failed. Retries retain the existing idempotent
+import behavior; a 207 response is a partial result, not a transport failure.
+
+### Undo and history
+
+`POST /api/me/imports/:jobId/undo` requires no body and delegates to the
+ownership-checked `undo_import_job` RPC. Success returns 200 with
+`{ removed, preserved, missing }` counts. Undo preserves later user edits;
+an unowned or ineligible job, or another RPC error, returns 409 with the legacy
+error string. See [Importing into Mosaic](imports.md) for provenance semantics.
+
+`GET /api/me/imports` returns 200 with `{ jobs: ImportHistoryItem[] }`, limited
+to the latest 50 jobs owned by the caller, ordered by `created_at` descending.
+Each job has `id`, `source`, `filename`, `status`, `totalRecords`,
+`importedRecords`, `skippedRecords`, `failedRecords`, `createdAt`, and optional
+`completedAt` and `errorSummary` (see `src/lib/imports/history.ts`).
+`importedRecords` is calculated as total minus skipped and failed, floored at
+zero. A query failure returns 500.
+
+### Export (`GET /api/me/export`)
+
+Success returns 200 with `Content-Type: application/zip`,
+`Content-Disposition: attachment; filename="<generated Mosaic filename>.zip"`,
+`Cache-Control: private, no-store`, and `X-Content-Type-Options: nosniff`.
+The archive uses the [versioned export schema](export-schema.md), includes the
+verified claims email when it is a string (otherwise profile email is `null`),
+and neutralizes spreadsheet formula prefixes in CSV. Data-query failures return
+500 with `{ error: "Your Mosaic export could not be prepared." }`.
+Export returns 401 outside live mode.
+
 ## Not ready for a native client
 
 The following route families have not yet been normalized to the private API
 error envelope or reviewed as a dedicated mobile contract and must not be used
 by a native V1 without a focused follow-up:
 
-- import preview, apply, undo, and history (`/api/me/imports/*`)
-- account export (`/api/me/export`)
 - public list detail (`/api/lists/:id`)
 - ancillary catalog discovery/related/watch-provider routes
 
