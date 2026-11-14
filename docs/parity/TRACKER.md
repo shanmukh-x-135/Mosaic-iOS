@@ -5,7 +5,7 @@ Implemented · Testing · Review required · Completed · Blocked.
 Agent: `codex:codex-rescue` unless noted. Updated after every delegation,
 review and merge.
 
-Last updated: 2026-11-14 — M0 merged to main; M1 in progress (approval required per milestone; merge to main at each milestone end).
+Last updated: 2026-11-14 — M1 complete and merged to main; M2 awaiting approval.
 
 ## Prerequisites and decisions
 
@@ -30,11 +30,11 @@ Last updated: 2026-11-14 — M0 merged to main; M1 in progress (approval require
 | T0.2 | Networking hardening, upload/download/NDJSON | Codex | P1 | Completed | 102/102 (14 new) | Two review rounds (400 mapping, timeouts; simulator file protection); merged `3ee5f33` |
 | T0.3 | PersonalStateStore | Codex | T0.1, T0.2 | Completed | 110/110 (8 new) | Reviewed; merged `2b16637` |
 | T0.4 | Contract-first scaffolding (T0.4a models/services, T0.4b routes/placeholders) | Codex | T0.3 | Completed | 123/123 (13 new) | Reviewed; screenshots unchanged (movie, series, settings); merged |
-| T1.1 | Related titles section | Codex | T0.4 | Delegated | — | — |
-| T1.2 | Where to watch | Codex | T0.4 | Delegated | — | — |
-| T1.3 | Episode ratings heatmap | Codex | T0.4 | Delegated | — | — |
-| T1.4 | Franchise screen/link, About & credits | Codex | T0.4 | Delegated | — | — |
-| T1.5 | Brand marks, platforms, credits on detail | Codex | T0.4 | Ready for delegation | — | — |
+| T1.1 | Related titles section | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
+| T1.2 | Where to watch | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
+| T1.3 | Episode ratings heatmap | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
+| T1.4 | Franchise screen/link, About & credits | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
+| T1.5 | Brand marks, platforms, credits on detail | Codex | T0.4 | Completed | 152/152 on integration | Reviewed; merged in M1 |
 | T2.1 | Logging completeness (viewing context, favourite, recents) | Codex | T0.4 | Ready for delegation | — | — |
 | T2.2 | Movie watch history + editor | Codex | T0.4 | Ready for delegation | — | — |
 | T2.3 | Reviews | Codex | T0.4 | Ready for delegation | — | — |
@@ -67,3 +67,4 @@ Last updated: 2026-11-14 — M0 merged to main; M1 in progress (approval require
 | 2026-11-14 | T0.3 merged (110/110). T0.4 split into T0.4a (models, services) and T0.4b (routes, placeholders, slots); T0.4a delegated. |
 | 2026-11-14 | T0.4a and T0.4b merged; M0 complete (123/123; fixture screenshots unchanged). Wave D tasks ready. |
 | 2026-11-14 | M0 merged into `main` (`4fa1867`). M1 approved; T1.1–T1.4 delegated in parallel. Policy: one milestone at a time with approval; merge integration → main at each milestone end. |
+| 2026-11-14 | M1 complete: related titles, where to watch, episode ratings heatmap, franchise + credits, brand marks/game credits. 152/152. Merged to `main`. Follow-up: `CatalogMedia` lacks `developerLogoUrl`/`publisherLogoUrl` (names shown, no logos) — add in M9. Fixture catalog lacks franchise titles (loaded state verified by unit tests only). |
