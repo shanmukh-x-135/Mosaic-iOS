@@ -18,6 +18,11 @@ struct SeriesHubView: View {
         MosaicScreen {
             DetailHero(media: media)
             DetailIdentity(media: media)
+            if DetailBrand(media: media) != nil {
+                DetailBrandMark(media: media)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
             VStack(alignment: .leading, spacing: MosaicSpace.medium) {
                 SeriesEpisodeProgress(media: media, state: state)
                 PersonalStoryPanel(media: media, showsLogAction: false)

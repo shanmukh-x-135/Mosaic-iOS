@@ -3,18 +3,21 @@ import XCTest
 
 @MainActor
 final class ScaffoldingTests: XCTestCase {
-    func testEveryPlaceholderIsUnavailable() {
-        let availability = [
-            RelatedTitlesSection.isAvailable, WatchProvidersSection.isAvailable,
-            EpisodeRatingsSection.isAvailable, MovieHistorySection.isAvailable,
-            FranchiseLink.isAvailable, AskAboutButton.isAvailable,
-            ReviewButton.isAvailable, ReviewSection.isAvailable, AddToListButton.isAvailable,
-            FranchiseView.isAvailable, CreditsView.isAvailable, StatsView.isAvailable,
-            ReviewsListView.isAvailable, MosaicUniverseView.isAvailable, RecapView.isAvailable,
-            AskView.isAvailable, YourDataView.isAvailable, ExportDataView.isAvailable, ImportFlowView.isAvailable,
+    /// Tracks which parity placeholders have shipped. Update this table as each
+    /// milestone switches its features on (see docs/parity/TRACKER.md).
+    func testPlaceholderAvailabilityMatchesShippedMilestones() {
+        let shipped = [ // M1
+            RelatedTitlesSection.isAvailable, WatchProvidersSection.isAvailable, EpisodeRatingsSection.isAvailable,
+            FranchiseLink.isAvailable, FranchiseView.isAvailable, CreditsView.isAvailable,
         ]
-        XCTAssertEqual(availability.count, 19)
-        XCTAssertTrue(availability.allSatisfy { !$0 })
+        let pending = [
+            MovieHistorySection.isAvailable, AskAboutButton.isAvailable, ReviewButton.isAvailable, ReviewSection.isAvailable,
+            AddToListButton.isAvailable, StatsView.isAvailable, ReviewsListView.isAvailable, MosaicUniverseView.isAvailable,
+            RecapView.isAvailable, AskView.isAvailable, YourDataView.isAvailable, ExportDataView.isAvailable, ImportFlowView.isAvailable,
+        ]
+        XCTAssertEqual(shipped.count + pending.count, 19)
+        XCTAssertTrue(shipped.allSatisfy { $0 })
+        XCTAssertTrue(pending.allSatisfy { !$0 })
     }
 
     func testNewRoutesAreHashableDistinctAndAppendToTheSelectedTab() throws {
