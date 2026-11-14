@@ -109,10 +109,15 @@ private struct MediaDetailContent: View {
             DetailIdentity(media: media)
             PersonalStoryPanel(media: media)
                 .padding(.horizontal, MosaicLayout.pageHorizontal)
+            if FranchiseLink.isAvailable { FranchiseLink(media: media) }
+            if media.mediaType == .movie, MovieHistorySection.isAvailable { MovieHistorySection(media: media) }
+            if ReviewSection.isAvailable { ReviewSection(media: media) }
             if let description = media.description, !description.isEmpty {
                 DetailAbout(text: description)
             }
             DetailFacts(facts: facts)
+            if media.mediaType == .movie, WatchProvidersSection.isAvailable { WatchProvidersSection(media: media) }
+            if RelatedTitlesSection.isAvailable { RelatedTitlesSection(media: media) }
         }
     }
 
@@ -294,8 +299,19 @@ struct PersonalStoryPanel: View {
                 .disabled(isSaving)
             }
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: MosaicSpace.small) { statusMenu; ratingMenu; favouriteButton }
-                VStack(alignment: .leading, spacing: MosaicSpace.small) { HStack(spacing: MosaicSpace.small) { statusMenu; favouriteButton }; ratingMenu }
+                HStack(spacing: MosaicSpace.small) {
+                    statusMenu; ratingMenu; favouriteButton
+                    if ReviewButton.isAvailable { ReviewButton(media: media) }
+                    if AddToListButton.isAvailable { AddToListButton(media: media) }
+                    if AskAboutButton.isAvailable { AskAboutButton(media: media) }
+                }
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    HStack(spacing: MosaicSpace.small) { statusMenu; favouriteButton }
+                    ratingMenu
+                    if ReviewButton.isAvailable { ReviewButton(media: media) }
+                    if AddToListButton.isAvailable { AddToListButton(media: media) }
+                    if AskAboutButton.isAvailable { AskAboutButton(media: media) }
+                }
             }
             .disabled(isSaving || !library.hasLoaded)
             if let notice { MosaicNotice(text: notice.0, tone: notice.1) }

@@ -33,11 +33,25 @@ struct SettingsView: View {
             }
             .listRowBackground(MosaicColor.elevated)
 
-            Section {
-                Text("Imports and exports are available on Mosaic for the web. Changes there appear here automatically.")
-                    .font(.footnote).foregroundStyle(MosaicColor.secondaryText)
-            } header: { Text("On the web") }
-            .listRowBackground(MosaicColor.elevated)
+            if YourDataView.isAvailable {
+                Section {
+                    NavigationLink("Your data", value: MosaicRoute.yourData)
+                }
+                .listRowBackground(MosaicColor.elevated)
+            }
+            if CreditsView.isAvailable {
+                Section {
+                    NavigationLink("About & credits", value: MosaicRoute.credits)
+                }
+                .listRowBackground(MosaicColor.elevated)
+            }
+            if !YourDataView.isAvailable {
+                Section {
+                    Text("Imports and exports are available on Mosaic for the web. Changes there appear here automatically.")
+                        .font(.footnote).foregroundStyle(MosaicColor.secondaryText)
+                } header: { Text("On the web") }
+                .listRowBackground(MosaicColor.elevated)
+            }
 
             Section {
                 Button("Sign Out", role: .destructive) { confirmsSignOut = true }

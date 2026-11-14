@@ -57,6 +57,18 @@ extension View {
             case let .list(list): ListDetailView(list: list)
             case .activity: ActivityView()
             case .settings: SettingsView()
+            case let .franchise(slug): FranchiseView(slug: slug)
+            case let .season(series, number): SeasonExperienceView(series: series, seasonNumber: number)
+            case .reviews: ReviewsListView()
+            case .diary: ActivityView()
+            case .stats: StatsView()
+            case let .mosaic(period): MosaicUniverseView(period: period)
+            case let .recap(period): RecapView(period: period)
+            case .yourData: YourDataView()
+            case .credits: CreditsView()
+            case .importFlow: ImportFlowView()
+            case let .ask(about): AskView(about: about)
+            case .exportData: ExportDataView()
             }
         }
     }
