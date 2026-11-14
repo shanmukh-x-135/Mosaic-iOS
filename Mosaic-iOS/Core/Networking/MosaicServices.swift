@@ -50,11 +50,12 @@ extension MosaicServices {
                 return try await authed("/api/me/series-state?\(components.percentEncodedQuery ?? "")")
             },
             mutate: { mutation in
-                try await client.mutate(path: "/api/me/state", body: mutation, token: try await session.currentAccessToken())
+                let data = try await client.mutateReturningData(path: "/api/me/state", body: mutation, token: try await session.currentAccessToken())
+                let snapshot = try? JSONDecoder.mosaic.decode(MosaicStateSnapshot.self, from: data)
                 if let route = mutation.affectedRoute, route.mediaType == .tv { await SeriesPersonalStateCache.shared.invalidate(route) }
-                // Region lives on the profile, not in the media state snapshot.
+                // Refresh the profile projection too when the watch region changes.
                 if mutation.type == "settings.watchRegion" { await session.refreshCurrentUser(); MosaicStateInvalidation.postProfileChange() }
-                MosaicStateInvalidation.post()
+                MosaicStateInvalidation.post(snapshot: snapshot)
             },
             updateProfile: { update in
                 let response: ProfileUpdateResponse = try await client.send(method: "PATCH", path: "/api/me/profile", body: update, token: try await session.currentAccessToken())
