@@ -115,19 +115,22 @@ private struct MediaDetailContent: View {
             if let description = media.description, !description.isEmpty {
                 DetailAbout(text: description)
             }
-            DetailFacts(facts: facts)
+            if media.mediaType == .game { GameCreditsSection(media: media) }
+            DetailFacts(facts: DetailMetadata.facts(for: media))
             if media.mediaType == .movie, WatchProvidersSection.isAvailable { WatchProvidersSection(media: media) }
             if RelatedTitlesSection.isAvailable { RelatedTitlesSection(media: media) }
         }
     }
+}
 
+nonisolated enum DetailMetadata {
     /// Only facts the provider supplied; a missing value is omitted, never shown as zero.
-    private var facts: [DetailFact] {
+    static func facts(for media: CatalogMedia) -> [DetailFact] {
         switch media.mediaType {
         case .movie:
-            [DetailFact("Runtime", media.runtimeMinutes.map(MosaicDuration.playtime)), DetailFact("Director", media.director), DetailFact("Studio", media.studio), DetailFact("Released", media.releaseDate)]
+            [DetailFact("Runtime", media.runtimeMinutes.map(MosaicDuration.playtime)), DetailFact("Director", media.director), DetailFact("Released", media.releaseDate)]
         case .game:
-            [DetailFact("Platforms", media.platforms.flatMap { $0.isEmpty ? nil : $0.joined(separator: ", ") }), DetailFact("Developer", media.developer), DetailFact("Publisher", media.publisher), DetailFact("Released", media.releaseDate)]
+            [DetailFact("Released", media.releaseDate)]
         case .book:
             [DetailFact("Author", media.authors.flatMap { $0.isEmpty ? nil : $0.joined(separator: ", ") }), DetailFact("Pages", media.pageCount.map(String.init)), DetailFact("Publisher", media.publisher), DetailFact("Published", media.releaseDate), DetailFact("ISBN", media.isbn)]
         case .tv:
@@ -177,6 +180,7 @@ struct DetailIdentity: View {
                 if let line = metadataLine { Text(line).font(.subheadline).foregroundStyle(MosaicColor.secondaryText).lineLimit(2) }
                 if let rating = media.community { MosaicCommunityRatingLabel(rating: rating) }
             }
+            if media.mediaType == .movie { DetailBrandMark(media: media) }
             if !media.genres.isEmpty {
                 Text(media.genres.joined(separator: " · ")).font(.footnote).foregroundStyle(MosaicColor.mutedText).lineLimit(2)
             }
@@ -190,11 +194,166 @@ struct DetailIdentity: View {
         if let year = media.releaseYear { values.append(String(year)) }
         switch media.mediaType {
         case .movie: if let runtime = media.runtimeMinutes { values.append(MosaicDuration.playtime(runtime)) }
-        case .tv: if let network = media.network { values.append(network) }
-        case .game: if let platform = media.platforms?.first { values.append(media.platforms!.count > 1 ? "\(platform) +\(media.platforms!.count - 1)" : platform) }
+        case .tv, .game: break
         case .book: if let authors = media.authors, !authors.isEmpty { values.append(authors.joined(separator: ", ")) }
         }
         return values.isEmpty ? nil : values.joined(separator: " · ")
+    }
+}
+
+// Keep presentation decisions pure so missing provider data and duplicate platforms
+// behave identically in the view and its tests.
+nonisolated struct DetailBrand: Equatable {
+    let name: String
+    let logoURL: URL?
+    let accessibilityLabel: String
+
+    init?(media: CatalogMedia) {
+        let rawName: String?
+        let role: String
+        switch media.mediaType {
+        case .movie:
+            rawName = media.studio; logoURL = media.studioLogoURL; role = "Studio"
+        case .tv:
+            rawName = media.network; logoURL = media.networkLogoURL; role = "Network"
+        case .game, .book:
+            return nil
+        }
+        guard let name = rawName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+        self.name = name
+        accessibilityLabel = "\(role): \(name)"
+    }
+}
+
+struct DetailBrandMark: View {
+    let media: CatalogMedia
+
+    var body: some View {
+        if let brand = DetailBrand(media: media) {
+            Group {
+                if let url = brand.logoURL {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFit()
+                                .frame(width: 96, height: 28)
+                        } else {
+                            nameLabel(brand.name)
+                        }
+                    }
+                    .frame(width: 96, height: 28)
+                } else {
+                    nameLabel(brand.name)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(brand.accessibilityLabel)
+        }
+    }
+
+    private func nameLabel(_ name: String) -> some View {
+        Text(name).font(.caption).foregroundStyle(MosaicColor.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+nonisolated struct GameCredits {
+    let platforms: [String]
+    let companies: [DetailFact]
+    var isVisible: Bool { !platforms.isEmpty || !companies.isEmpty }
+
+    init(media: CatalogMedia) {
+        platforms = Self.normalizedPlatforms(media.platforms ?? [])
+        companies = [DetailFact("Developed by", media.developer), DetailFact("Published by", media.publisher)]
+            .compactMap { fact in
+                guard let name = fact.value?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return nil }
+                return DetailFact(fact.label, name)
+            }
+    }
+
+    static func normalizedPlatforms(_ platforms: [String]) -> [String] {
+        var seen: Set<String> = []
+        return platforms.compactMap { platform in
+            let name = platform.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, seen.insert(name.lowercased()).inserted else { return nil }
+            return name
+        }
+    }
+}
+
+struct GameCreditsSection: View {
+    let media: CatalogMedia
+
+    var body: some View {
+        let credits = GameCredits(media: media)
+        if credits.isVisible {
+            VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                MosaicSectionHeader("Platforms & credits", eyebrow: "Game details")
+                VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                    if !credits.platforms.isEmpty {
+                        Text("Platforms").font(.subheadline.weight(.semibold))
+                            .foregroundStyle(MosaicColor.secondaryText)
+                        DetailPlatformLayout {
+                            ForEach(credits.platforms, id: \.self) { platform in
+                                MosaicFilterChip(title: platform, selected: false)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityLabel("Platform: \(platform)")
+                            }
+                        }
+                    }
+                    // CatalogMedia does not decode developer/publisher logos yet.
+                    ForEach(credits.companies) { company in
+                        VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
+                            Text(company.label).font(.caption).foregroundStyle(MosaicColor.secondaryText)
+                            Text(company.value ?? "").font(.subheadline.weight(.semibold))
+                                .foregroundStyle(MosaicColor.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(company.label): \(company.value ?? "")")
+                    }
+                }
+                .padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+        }
+    }
+}
+
+/// Measure with the available width so even a single long chip can wrap at
+/// accessibility text sizes. Both layout passes use the same row calculation.
+private struct DetailPlatformLayout: Layout {
+    private let spacing = MosaicSpace.xSmall
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrangement(width: proposal.width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrangement(width: bounds.width, subviews: subviews)
+        for (index, subview) in subviews.enumerated() {
+            let frame = layout.frames[index]
+            subview.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                          proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func arrangement(width: CGFloat?, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        let limit = max(0, width ?? .infinity)
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+        var frames: [CGRect] = []
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: limit.isFinite ? limit : nil, height: nil))
+            if x > 0 && x + size.width > limit {
+                x = 0; y += rowHeight + spacing; rowHeight = 0
+            }
+            frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
+            usedWidth = max(usedWidth, x + size.width)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (CGSize(width: width ?? usedWidth, height: y + rowHeight), frames)
     }
 }
 
@@ -219,7 +378,7 @@ struct DetailAbout: View {
     }
 }
 
-struct DetailFact: Identifiable {
+nonisolated struct DetailFact: Identifiable {
     let label: String
     let value: String?
     var id: String { label }
@@ -229,7 +388,8 @@ struct DetailFact: Identifiable {
 struct DetailFacts: View {
     let facts: [DetailFact]
     var body: some View {
-        let available = facts.filter { $0.value?.isEmpty == false }
+        // The series hub supplies Network in its facts, but now shows it in DetailBrandMark.
+        let available = facts.filter { $0.label != "Network" && $0.value?.isEmpty == false }
         if !available.isEmpty {
             VStack(alignment: .leading, spacing: MosaicSpace.small) {
                 MosaicSectionHeader("Details")
