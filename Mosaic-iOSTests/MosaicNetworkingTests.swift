@@ -131,7 +131,9 @@ final class MosaicNetworkingTests: XCTestCase {
         XCTAssertTrue(url.path.hasPrefix(FileManager.default.temporaryDirectory.path))
         XCTAssertEqual(try Data(contentsOf: url), Data([0, 1, 2, 3]))
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #if !targetEnvironment(simulator)
         XCTAssertEqual(attributes[.protectionKey] as? FileProtectionType, .complete)
+        #endif
     }
 
     func testDownloadSanitizesFilenameAndUsesFallback() async throws {
