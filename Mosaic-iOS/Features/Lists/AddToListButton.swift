@@ -1,11 +1,19 @@
 import SwiftUI
 
-/// Implemented by T3.2.
 struct AddToListButton: View {
-    static let isAvailable = false
+    static let isAvailable = true
     let media: CatalogMedia
+    @Environment(PersonalStateStore.self) private var store
+    @Environment(\.mosaicServices) private var services
+    @State private var presentsSheet = false
 
     var body: some View {
-        if !Self.isAvailable { EmptyView() }
+        Button { presentsSheet = true } label: {
+            Label("Add to list", systemImage: "text.badge.plus")
+        }
+        .buttonStyle(.bordered)
+        .disabled(store.snapshot == nil)
+        .onAppear { store.load(services) }
+        .sheet(isPresented: $presentsSheet) { AddToListSheet(media: media) }
     }
 }
