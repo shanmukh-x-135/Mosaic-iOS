@@ -5,7 +5,7 @@ Implemented · Testing · Review required · Completed · Blocked.
 Agent: `codex:codex-rescue` unless noted. Updated after every delegation,
 review and merge.
 
-Last updated: 2026-11-15 — M3 complete and merged to main; M4 approved and in progress.
+Last updated: 2026-11-15 — M4 complete and merged to main; M5 awaiting approval.
 
 ## Prerequisites and decisions
 
@@ -40,10 +40,10 @@ Last updated: 2026-11-15 — M3 complete and merged to main; M4 approved and in 
 | T2.3 | Reviews | Codex | T0.4 | Completed | 176/176 on integration | Reviewed; merged in M2 |
 | T3.1 | List creation and editor | Codex | T0.4 | Completed | 188/188 on integration | Reviewed; merged in M3 |
 | T3.2 | Add to list from detail | Codex | T0.4 | Completed | 188/188 on integration | Reviewed; merged in M3 |
-| T4.1 | Full activity, filters, movie diary | Codex | T2.2 | Delegated | — | — |
-| T4.2 | Profile structure | Codex | T4.4 | Delegated | — | — |
-| T4.3 | Stats screen | Codex | T0.4, TB2 deployed | Delegated | — | — |
-| T4.4 | Avatar preset assets | Codex | T0.4 | Implemented | full suite green on branch | Reviewed; awaiting M4 merge |
+| T4.1 | Full activity, filters, movie diary | Codex | T2.2 | Completed | 209/209 on integration | Reviewed (1 round: diary route opens diary); merged in M4 |
+| T4.2 | Profile structure | Codex | T4.4 | Completed | 209/209 on integration | Reviewed; merged in M4 |
+| T4.3 | Stats screen | Codex | T0.4, TB2 deployed | Completed | 209/209 on integration | Reviewed; merged in M4 |
+| T4.4 | Avatar preset assets | Codex | T0.4 | Completed | 209/209 on integration | Reviewed; merged in M4 |
 | T5.1 | Your Mosaic | Codex | T0.4, D1 | Ready for delegation | — | — |
 | T5.2 | Recap | Codex | T0.4 | Ready for delegation | — | — |
 | T6.1 | Email sign-in and sign-up | Codex | T0.4 | Ready for delegation | — | — |
@@ -71,3 +71,4 @@ Last updated: 2026-11-15 — M3 complete and merged to main; M4 approved and in 
 | 2026-11-14 | M2 approved; T2.1, T2.2, T2.3 delegated in parallel. |
 | 2026-11-15 | M2 complete: viewing context, favourite on log, Quick Log recents, movie watch history with edit/delete, reviews. 176/176. Merged to `main`. Polish for M9: personal panel buttons wrap to three rows with the Review button; Review button stays disabled if the state load fails (no retry until relaunch). |
 | 2026-11-15 | M3 complete: list creation and editor, add to list from detail. 188/188. Merged to `main`. M4 approved; T4.1–T4.4 under way. |
+| 2026-11-15 | M4 complete: full activity with filters and movie diary, Profile sections (Overview/Diary/Reviews/Lists/Stats), Stats screen (server B2), avatar presets. 209/209. Merged to `main`. Polish for M9: Profile metric artwork renders below its card instead of inside it. |

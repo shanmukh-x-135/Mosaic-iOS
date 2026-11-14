@@ -1,36 +1,53 @@
 import Observation
 import SwiftUI
 
-/// Identity first, then honest statistics, recent history, favourites and the
-/// user's lists. Every number is a server projection; nothing is inferred.
 struct ProfileView: View {
     @Environment(SessionStore.self) private var session
+    @Environment(PersonalStateStore.self) private var personal
     @Environment(\.mosaicServices) private var services
-    @Environment(LibraryStore.self) private var library
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @SceneStorage("mosaic.profileSection") private var section = "Overview"
     @State private var stats = Loadable<ProfileStatsDTO>.idle
     @State private var activity = Loadable<[ProfileActivity]>.idle
     @State private var lists = Loadable<[UserList]>.idle
+    @State private var mosaic: MosaicSnapshot?
     @State private var editingProfile = false
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private let sections = ["Overview", "Diary", "Reviews", "Lists", "Stats"]
 
     var body: some View {
         MosaicScreen {
-            ProfileIdentity(profile: session.currentUser?.profile)
-            if let error = session.backendError { MosaicNotice(text: error, tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal) }
-            statsSection
-            recentSection
-            favouritesSection
-            listsSection
-            VStack(spacing: 0) {
-                ProfileLink(title: "Activity", subtitle: "Your full diary of logs and updates", systemImage: "clock.arrow.circlepath", route: .activity)
-                Divider().overlay(MosaicColor.border).padding(.leading, 56)
-                ProfileLink(title: "Lists", subtitle: lists.value.map { "\($0.count) \($0.count == 1 ? "list" : "lists")" } ?? "Your collections", systemImage: "list.bullet.rectangle", route: .lists)
-                Divider().overlay(MosaicColor.border).padding(.leading, 56)
-                ProfileLink(title: "Settings", subtitle: "Account and sign out", systemImage: "gearshape", route: .settings)
+            ProfileIdentity(profile: session.currentUser?.profile, edit: { editingProfile = true })
+            if let error = session.backendError {
+                MosaicNotice(text: error, tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal)
             }
-            .background(MosaicColor.elevated, in: RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: MosaicRadius.card, style: .continuous).strokeBorder(MosaicColor.border) }
+            if let line = ProfileSections.collectionLine(mosaic) {
+                Text(line).font(.footnote).foregroundStyle(MosaicColor.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, MosaicLayout.pageHorizontal)
+            }
+            Picker("Profile sections", selection: $section) {
+                ForEach(sections, id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.segmented)
             .padding(.horizontal, MosaicLayout.pageHorizontal)
+            switch section {
+            case "Diary": diarySection
+            case "Reviews": ProfileReviewsContent(state: personal.state)
+            case "Lists": listsSection
+            case "Stats":
+                statsSection
+                profileLink("See all stats", subtitle: "Explore your statistics", symbol: "chart.bar", route: .stats)
+            default:
+                overviewSection
+                favouritesSection
+                diarySection
+                profileLink("Stats", subtitle: "Explore your statistics", symbol: "chart.bar", route: .stats)
+                if MosaicUniverseView.isAvailable {
+                    profileLink("Your Mosaic", subtitle: "Explore your stories", symbol: "sparkles", route: .mosaic(nil))
+                }
+                if RecapView.isAvailable {
+                    profileLink("This year's recap", subtitle: "Your year in stories", symbol: "calendar", route: .recap(String(Calendar.current.component(.year, from: Date()))))
+                }
+            }
         }
         .navigationTitle("Profile")
         .toolbar {
@@ -38,15 +55,52 @@ struct ProfileView: View {
                 Button("Edit") { editingProfile = true }
                     .accessibilityHint("Change your name, username, bio and photo")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                NavigationLink(value: MosaicRoute.settings) { Label("Settings", systemImage: "gearshape") }
+            }
             QuickLogToolbarItem()
         }
         .sheet(isPresented: $editingProfile) { NavigationStack { EditProfileView() } }
-        .task { await load() }
-        .refreshable { await load(force: true) }
-        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { _ in Task { await load(force: true) } }
+        .task { personal.load(services); await load() }
+        .refreshable { personal.refresh(services); await load(force: true) }
+        .onReceive(NotificationCenter.default.publisher(for: .mosaicStateDidChange)) { notification in
+            personal.handleStateChange(notification, services: services)
+            Task { await load(force: true) }
+        }
     }
 
-    // MARK: Sections
+    private func profileLink(_ title: String, subtitle: String, symbol: String, route: MosaicRoute) -> some View {
+        ProfileLink(title: title, subtitle: subtitle, systemImage: symbol, route: route)
+            .padding(.horizontal, MosaicLayout.pageHorizontal)
+    }
+
+    @ViewBuilder private var overviewSection: some View {
+        MosaicSectionHeader("Your story so far")
+        switch personal.state {
+        case .idle, .loading:
+            ProgressView("Loading your history")
+        case let .failed(error):
+            MosaicStateMessage(title: MosaicErrorCopy.title(for: error, subject: "your history"), message: MosaicErrorCopy.message(for: error), systemImage: "exclamationmark.triangle", actionTitle: "Try again") { personal.refresh(services) }
+        case let .loaded(snapshot):
+            statGrid {
+                ForEach(ProfileSections.metrics(snapshot)) { metric in
+                    VStack(alignment: .leading, spacing: MosaicSpace.small) {
+                        ProfileStat(value: metric.value.formatted(), label: metric.label, detail: nil, mediaType: metric.type)
+                        if !metric.artwork.isEmpty {
+                            HStack(spacing: MosaicSpace.xxSmall) {
+                                ForEach(metric.artwork) { media in
+                                    NavigationLink(value: MosaicRoute.media(media)) {
+                                        MosaicArtwork(url: media.posterURL, fallbackURL: media.backdropURL, mediaType: media.mediaType, title: media.title)
+                                            .frame(width: 36, height: 54).clipShape(RoundedRectangle(cornerRadius: MosaicRadius.small))
+                                    }.buttonStyle(.plain).accessibilityLabel(media.title)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     @ViewBuilder private var statsSection: some View {
         VStack(alignment: .leading, spacing: MosaicSpace.medium) {
@@ -77,35 +131,30 @@ struct ProfileView: View {
             .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
 
-    @ViewBuilder private var recentSection: some View {
+    @ViewBuilder private var diarySection: some View {
+        MosaicSectionHeader("Diary") { NavigationLink("Open full history", value: MosaicRoute.activity) }
         switch activity {
         case let .loaded(items) where !items.isEmpty:
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                MosaicSectionHeader("Recently logged", eyebrow: "Personal history") { NavigationLink("See all", value: MosaicRoute.activity) }
-                VStack(spacing: MosaicSpace.small) {
-                    ForEach(items.prefix(5)) { event in
-                        NavigationLink(value: MosaicRoute.media(event.media)) { ActivityEventRow(event: event) }.buttonStyle(.plain)
-                    }
+            VStack(spacing: MosaicSpace.medium) {
+                ForEach(items.sorted { $0.occurredAt > $1.occurredAt }.prefix(section == "Overview" ? 5 : 20)) { event in
+                    NavigationLink(value: MosaicRoute.media(event.media)) { ActivityEventRow(event: event) }.buttonStyle(.plain)
                 }
-                .padding(.horizontal, MosaicLayout.pageHorizontal)
-            }
+            }.padding(.horizontal, MosaicLayout.pageHorizontal)
         case .loaded:
-            MosaicStateMessage(title: "Start your personal history", message: "Log a movie, episode, game session, or reading update and it will appear here.", systemImage: "person.text.rectangle")
+            MosaicStateMessage(title: "No history yet", message: "Your real activity will appear here after you log it.", systemImage: "clock")
         case .failed:
             MosaicNotice(text: "Recent activity couldn’t be loaded. Pull to refresh.", tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal)
-        case .idle, .loading:
-            EmptyView()
+        case .idle, .loading: ProgressView("Loading your activity")
         }
     }
 
     @ViewBuilder private var favouritesSection: some View {
-        let favourites = library.items.filter(\.isFavorite)
-        if !favourites.isEmpty {
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                MosaicSectionHeader("Favourite stories", eyebrow: "Taste profile")
+        if let snapshot = personal.snapshot {
+            ForEach(ProfileSections.favourites(snapshot)) { shelf in
+                MosaicSectionHeader(shelf.title)
                 MosaicRail {
-                    ForEach(favourites.prefix(12)) { item in
-                        NavigationLink(value: MosaicRoute.media(item)) { MosaicPosterCard(summary: MosaicMediaSummary(item), width: 104, showsMedium: true) }.buttonStyle(.plain)
+                    ForEach(shelf.items) { media in
+                        NavigationLink(value: MosaicRoute.media(media)) { MosaicPosterCard(summary: MosaicMediaSummary(media), width: 104) }.buttonStyle(.plain)
                     }
                 }
             }
@@ -113,25 +162,28 @@ struct ProfileView: View {
     }
 
     @ViewBuilder private var listsSection: some View {
-        if let lists = lists.value, !lists.isEmpty {
-            VStack(alignment: .leading, spacing: MosaicSpace.medium) {
-                MosaicSectionHeader("Your lists", eyebrow: "Collections") { NavigationLink("See all", value: MosaicRoute.lists) }
-                MosaicRail {
-                    ForEach(lists.prefix(8)) { list in
-                        NavigationLink(value: MosaicRoute.list(list)) { ListCoverCard(list: list) }.buttonStyle(.plain)
-                    }
+        MosaicSectionHeader("Your lists") { NavigationLink("Manage lists", value: MosaicRoute.lists) }
+        switch lists {
+        case let .loaded(items) where !items.isEmpty:
+            MosaicRail {
+                ForEach(items) { list in
+                    NavigationLink(value: MosaicRoute.list(list)) { ListCoverCard(list: list) }.buttonStyle(.plain)
                 }
             }
+        case .loaded:
+            MosaicStateMessage(title: "Make a list that crosses formats", message: "Build one list with movies, series, games, and books.", systemImage: "list.bullet.rectangle")
+        case .failed:
+            MosaicNotice(text: "Your lists couldn’t be loaded. Pull to refresh.", tone: .failure).padding(.horizontal, MosaicLayout.pageHorizontal)
+        case .idle, .loading: ProgressView("Loading your lists")
         }
     }
-
-    // MARK: Loading
 
     private func load(force: Bool = false) async {
         async let s: Void = loadStats(force: force)
         async let a: Void = loadActivity(force: force)
         async let l: Void = loadLists(force: force)
-        _ = await (s, a, l)
+        async let m: Void = loadMosaic()
+        _ = await (s, a, l, m)
     }
     private func loadStats(force: Bool = true) async {
         guard force || stats.value == nil else { return }
@@ -141,26 +193,32 @@ struct ProfileView: View {
     private func loadActivity(force: Bool) async {
         guard force || activity.value == nil else { return }
         if activity.value == nil { activity = .loading }
-        do { activity = .loaded(try await services.activity(6)) } catch is CancellationError {} catch { if activity.value == nil { activity = .failed(error) } }
+        do { activity = .loaded(try await services.activity(20)) } catch is CancellationError {} catch { if activity.value == nil { activity = .failed(error) } }
     }
     private func loadLists(force: Bool) async {
         guard force || lists.value == nil else { return }
+        if lists.value == nil { lists = .loading }
         do { lists = .loaded(try await services.lists()) } catch is CancellationError {} catch { if lists.value == nil { lists = .failed(error) } }
+    }
+    private func loadMosaic() async {
+        do { mosaic = try await services.mosaic("all") } catch { mosaic = nil }
     }
 }
 
 private struct ProfileIdentity: View {
     let profile: Profile?
+    var edit: () -> Void
     var body: some View {
         HStack(alignment: .center, spacing: MosaicSpace.medium) {
-            ProfileAvatar(url: profile?.avatarURL).frame(width: 72, height: 72)
+            MosaicAvatarView(value: profile?.avatar, name: profile?.displayName).frame(width: 72, height: 72)
             VStack(alignment: .leading, spacing: MosaicSpace.xxSmall) {
-                MosaicEyebrow(title: "Your Mosaic")
                 Text(profile?.displayName ?? visibleUsername ?? "Your profile").font(MosaicType.title).foregroundStyle(MosaicColor.primaryText).lineLimit(2).accessibilityAddTraits(.isHeader)
                 // Generated `user_…` handles are placeholders, not identities.
                 if let visibleUsername { Text("@\(visibleUsername)").font(.subheadline).foregroundStyle(MosaicColor.secondaryText) }
                 if let bio = profile?.bio, !bio.isEmpty {
                     Text(bio).font(.footnote).foregroundStyle(MosaicColor.secondaryText).lineLimit(3)
+                } else {
+                    Button("Add a bio", action: edit).font(.footnote)
                 }
             }
             Spacer(minLength: 0)
@@ -168,33 +226,6 @@ private struct ProfileIdentity: View {
         .padding(.horizontal, MosaicLayout.pageHorizontal)
     }
     private var visibleUsername: String? { profile?.username.flatMap { $0.hasPrefix("user_") ? nil : $0 } }
-}
-
-/// Remote avatars, or the web's bundled SVG presets, with a gradient fallback.
-/// Preset paths are relative to the web app, so they resolve against the API base.
-private struct ProfileAvatar: View {
-    let url: URL?
-    var body: some View {
-        Group {
-            if let resolved {
-                AsyncImage(url: resolved) { phase in
-                    if case let .success(image) = phase { image.resizable().scaledToFill() } else { placeholder }
-                }
-            } else { placeholder }
-        }
-        .clipShape(Circle())
-        .overlay { Circle().strokeBorder(MosaicColor.highlight) }
-        .accessibilityHidden(true)
-    }
-    private var resolved: URL? {
-        guard let url else { return nil }
-        if url.scheme == nil { return URL(string: url.relativeString, relativeTo: AppConfiguration.current.apiBaseURL)?.absoluteURL }
-        return url.pathExtension.lowercased() == "svg" ? nil : url
-    }
-    private var placeholder: some View {
-        LinearGradient(colors: [MosaicColor.accent, CatalogMediaType.tv.accent], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .overlay(Image(systemName: "person.fill").font(.title2).foregroundStyle(.white.opacity(0.9)))
-    }
 }
 
 private struct ProfileStat: View {
@@ -258,5 +289,98 @@ struct ActivityEventRow: View {
     }
     private var summary: String {
         [event.label, event.rating.map { "\(UserRating.format($0)) ★" }, event.detail].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+/// Pure projections shared by Profile, the full reviews route and fixture tests.
+nonisolated enum ProfileSections {
+    struct Metric: Identifiable {
+        let type: CatalogMediaType
+        let label: String
+        let value: Int
+        let artwork: [CatalogMedia]
+        var id: CatalogMediaType { type }
+    }
+    struct FavouriteShelf: Identifiable {
+        let type: CatalogMediaType
+        let title: String
+        let items: [CatalogMedia]
+        var id: CatalogMediaType { type }
+    }
+    private struct EpisodeKey: Hashable {
+        let series: String
+        let season: Int
+        let episode: Int
+    }
+
+    static func metrics(_ snapshot: MosaicStateSnapshot) -> [Metric] {
+        let episodes = Set(snapshot.episodeWatches.filter { $0.isRewatch != true }.map {
+            EpisodeKey(series: $0.series.mediaKey, season: $0.seasonNumber, episode: $0.episodeNumber)
+        })
+        let games = snapshot.gamePlaythroughs.filter { $0.status == "completed" }
+        let books = snapshot.bookReadings.filter { $0.status == "finished" }
+        return [
+            Metric(type: .movie, label: "Movies watched", value: snapshot.movieWatches.count,
+                   artwork: recentArtwork(snapshot.movieWatches.map { ($0.media, $0.watchedAt) })),
+            Metric(type: .tv, label: "Unique episodes watched", value: episodes.count,
+                   artwork: episodes.isEmpty ? [] : recentArtwork(snapshot.episodeWatches.map { ($0.series, $0.watchedAt) })),
+            Metric(type: .game, label: "Games completed", value: games.count,
+                   artwork: recentArtwork(games.map { ($0.media, $0.updatedAt) })),
+            Metric(type: .book, label: "Books read", value: books.count,
+                   artwork: recentArtwork(books.map { ($0.media, $0.updatedAt) }))
+        ]
+    }
+
+    private static func recentArtwork(_ records: [(media: CatalogMedia, at: String)]) -> [CatalogMedia] {
+        var seen = Set<String>()
+        return Array(records.sorted { $0.at > $1.at }.compactMap { record in
+            seen.insert(record.media.mediaKey).inserted ? record.media : nil
+        }.prefix(3))
+    }
+
+    static func favourites(_ snapshot: MosaicStateSnapshot) -> [FavouriteShelf] {
+        let types: [(CatalogMediaType, String)] = [(.movie, "movies"), (.tv, "series"), (.game, "games"), (.book, "books")]
+        return types.compactMap { type, label in
+            let items = Array(snapshot.library.filter { $0.isFavorite && $0.media.mediaType == type }.map(\.media).prefix(5))
+            return items.isEmpty ? nil : FavouriteShelf(type: type, title: "Favourite \(label)", items: items)
+        }
+    }
+
+    static func collectionLine(_ snapshot: MosaicSnapshot?) -> String? {
+        guard let snapshot, snapshot.totals.storiesRepresented > 0 else { return nil }
+        let count = snapshot.totals.storiesRepresented
+        var parts = ["\(count.formatted(.number.locale(Locale(identifier: "en_US")))) \(count == 1 ? "story" : "stories") logged"]
+        let mix = snapshot.totals.byMediaType
+        let media = [mix.movie, mix.series, mix.game, mix.book].filter { $0 > 0 }.count
+        if media > 1 { parts.append("across \(media) media") }
+        if let earliest = snapshot.tiles.compactMap({ $0.activity.firstActivityAt.flatMap(date) }).min() {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "MMM yyyy"
+            parts.append("earliest activity \(formatter.string(from: earliest))")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    static func reviewExcerpt(_ review: MosaicStateSnapshot.Review) -> String {
+        review.containsSpoilers ? "Contains spoilers" : String(review.body.prefix(150))
+    }
+
+    static func sortedReviews(_ reviews: [MosaicStateSnapshot.Review]) -> [MosaicStateSnapshot.Review] {
+        reviews.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    static func date(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        if let date = formatter.date(from: value) { return date }
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = TimeZone(secondsFromGMT: 0)
+        day.dateFormat = "yyyy-MM-dd"
+        return day.date(from: value)
     }
 }
