@@ -35,7 +35,7 @@ was installed on 2026-11-14 and an `iPhone 17` simulator created.
 
 - The iOS app has **no backend of its own**. All personal data goes through
   the web's Next.js route handlers; all catalog data is normalized server-side.
-- One write endpoint: `POST /api/me/state` accepts 22 discriminated commands
+- One write endpoint: `POST /api/me/state` accepts 20 discriminated commands
   (`src/lib/persistence/validation.ts`) and **returns the full updated
   `MosaicState`**. iOS currently discards that response.
 - The web browser keeps one full `MosaicState` in memory
@@ -67,7 +67,7 @@ was installed on 2026-11-14 and an `iPhone 17` simulator created.
 | Shell | `App/AppShell.swift`: `TabView` (Home, Discover, Library, Profile, search-role tab), per-tab `NavigationStack`, `MosaicRouter`, Quick Log sheet |
 | Data seam | `Core/Networking/MosaicServices.swift`: injectable closures over `MosaicAPIClient`; DEBUG fixtures reuse the real screens |
 | Shared state | `LibraryStore` (one `GET /api/me/library`, refreshed on `mosaicStateDidChange`), in-memory caches for catalog detail, seasons, series state |
-| Writes | `DetailMutation` (`Core/Models/MosaicMutation.swift`) — 12 of 22 commands |
+| Writes | `DetailMutation` (`Core/Models/MosaicMutation.swift`) — 10 of 20 commands |
 | Product rules | Swift mirrors of web rules: statuses/labels, rating scales, activity labels, recommendations, genres/themes, avatar presets (`MosaicProductRules.swift`, `DiscoverTaxonomy.swift`, `PersonalHistory.swift`) |
 | Tests | `MosaicFoundationTests` (36), `MosaicAlignmentTests` (24); no UI tests, no linter |
 | Project | File-system-synchronized groups: new files need no `project.pbxproj` edits |
@@ -124,7 +124,7 @@ Implemented and wired to the real API (from code, not docs):
 | `GET /api/me` | Bearer/cookie | — (gateway) | ✓ | Yes |
 | `PATCH /api/me/profile` | Bearer/cookie | — | ✓ | Yes |
 | `GET /api/me/state` | Bearer/cookie | ✓ (everything) | Discover recs only (partial decode) | Yes (heavy) |
-| `POST /api/me/state` (22 commands) | Bearer/cookie | ✓ all 22 | 12 commands | Yes; **returns full state** |
+| `POST /api/me/state` (20 commands) | Bearer/cookie | ✓ all 20 | 10 commands | Yes; **returns full state** |
 | `GET /api/me/continue` | Bearer/cookie | — | ✓ | Yes |
 | `GET /api/me/library` | Bearer/cookie | — | ✓ | Yes |
 | `GET /api/me/activity?limit≤100` | Bearer/cookie | — | ✓ | Yes (no pagination) |
@@ -221,7 +221,7 @@ recommended to use the new B2 endpoint.
 | # | Finding | Why it matters | Recommendation | Benefit | Risk / migration |
 | --- | --- | --- | --- | --- | --- |
 | A1 | **Most remaining features need the full personal state** (reviews, movie watches with ids/viewing context, lists, season states). iOS only decodes a lossy subset of `GET /api/me/state`, used once by Discover. | Without a shared store, every new screen would re-fetch the heavy snapshot and drift. | Add a `PersonalStateStore` (like `LibraryStore`) that loads `GET /api/me/state` once and **applies the `MosaicState` returned by `POST /api/me/state`** — no extra round trip after writes. Keep `LibraryStore` and the focused projections for Home/Library. (T0.3) | One consistent source for history features; writes refresh for free. | Large accounts make a big payload; decode lossily and lazily (first screen that needs it). Two stores must refresh together: both listen to the same notification. |
-| A2 | `DetailMutation` is a flat struct of 26 optionals with a special-case encoder; it covers 12 of 22 commands. | Adding the 10 missing commands (+6 fields) as more optionals lets invalid combinations compile and encode. | Keep the public type and existing builders (no call-site churn) but make the payload an internal enum with one exhaustive encoder; add builders for every command; golden JSON tests per command mirroring `validation.ts`. (T0.1) | Type-safe, complete command surface; a single place to audit wire shapes. | Contained to one file + tests. Existing alignment tests must keep passing unchanged. |
+| A2 | `DetailMutation` is a flat struct of 26 optionals with a special-case encoder; it covers 10 of 20 commands. | Adding the 10 missing commands (+6 fields) as more optionals lets invalid combinations compile and encode. | Keep the public type and existing builders (no call-site churn) but make the payload an internal enum with one exhaustive encoder; add builders for every command; golden JSON tests per command mirroring `validation.ts`. (T0.1) | Type-safe, complete command surface; a single place to audit wire shapes. | Contained to one file + tests. Existing alignment tests must keep passing unchanged. |
 | A3 | Authenticated GETs have no explicit timeout and don't map `URLError.timedOut`; legacy `{ "error": "string" }` bodies (imports, export, lists, ancillary catalog) collapse to a generic message. | Import errors carry user-actionable text ("Import files must be 12 MB or smaller."). | Harden `MosaicAPIClient`: shared timeout policy, timedOut mapping, legacy string decoding; add raw upload, file download and NDJSON line streaming primitives. (T0.2) | Needed by imports, export and Ask; consistent errors. | Low; covered by unit tests with `URLProtocol` stubs. |
 | A4 | `MosaicServices` and `MosaicRoute`/destinations are shared by every feature. | Parallel tasks editing them would conflict. | **Contract-first scaffolding** (T0.4): declare all new service closures, models, routes, Settings rows and **placeholder views/detail slots** (rendering nothing) up front. Feature tasks then only fill in files they own. | Safe parallel delegation; no shared-file merge conflicts. | Placeholders must render `EmptyView` so nothing half-built ships. |
 | A5 | Business-logic mirrors in Swift (statuses, labels, activity labels, recommendations, genres, themes, avatars; next: franchises, recap, activity projection, import reconciliation). | Drift from the web is the main correctness risk. | Port only small, pure functions (recap 44 lines, projectActivity ~70, reconciliation helpers) with **golden tests copied from web test fixtures**; use a **server projection for Profile Stats** (215 dense lines) — B2 (task TB2). | Bounded duplication; complex analytics stay single-sourced. | B2 is a backend change needing approval + deploy; fallback is a Swift port with golden tests. |
@@ -406,7 +406,7 @@ Wave G:  optional M7 / M8 (after decisions) → T9.1
 
 | Layer | What | When |
 | --- | --- | --- |
-| Unit — wire shapes | Golden JSON for all 22 commands vs `validation.ts`; decoding of every new response shape (incl. legacy errors) | T0.1, T0.2, T0.4 |
+| Unit — wire shapes | Golden JSON for all 20 commands vs `validation.ts`; decoding of every new response shape (incl. legacy errors) | T0.1, T0.2, T0.4 |
 | Unit — ported logic | Recap, `projectActivity`, reconciliation helpers, franchise mirror, episode rating categories — fixtures copied from `Tracking App/tests/*` | Each porting task |
 | Unit — stores | `PersonalStateStore` applies mutation responses; failure keeps last good state | T0.3 |
 | Visual | Fixture screens for every new screen: loaded, empty, error, AX3 Dynamic Type | Each UI task |

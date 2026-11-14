@@ -25,7 +25,7 @@ Complexity: S (≤ 1 file of substance), M (2–4 files), L (5+ files or tricky 
 ## M0 — Foundations
 
 ### T0.1 Complete command model
-- **Objective:** `DetailMutation` can express all 22 `POST /api/me/state` commands with exact wire shapes.
+- **Objective:** `DetailMutation` can express all 20 `POST /api/me/state` commands with exact wire shapes.
 - **Files:** `Mosaic-iOS/Core/Models/MosaicMutation.swift`; new `Mosaic-iOSTests/MosaicCommandTests.swift`.
 - **Instructions:**
   1. Keep the public type name, `type`, `affectedRoute` and every existing static builder signature (no call-site changes). Internally replace the flat optionals with an enum payload and one exhaustive encoder.
@@ -35,7 +35,7 @@ Complexity: S (≤ 1 file of substance), M (2–4 files), L (5+ files or tricky 
 - **Contract:** web `src/lib/persistence/validation.ts` (all schemas), `src/lib/persistence/types.ts`.
 - **Depends on:** P1. **Parallel with:** T0.2. **Complexity:** M.
 - **Acceptance:** every command encodes to JSON that the web Zod schema accepts (field names, date formats, `null` vs omitted — `rating.set` keeps explicit `null`); existing `MosaicAlignmentTests` pass unchanged.
-- **Tests:** one golden-JSON test per command (22), plus `completedOn` presence/absence and streaming-service omission.
+- **Tests:** one golden-JSON test per command (20), plus `completedOn` presence/absence and streaming-service omission.
 
 ### T0.2 Networking hardening and transport primitives
 - **Objective:** consistent errors and the transports imports, export and Ask need.
