@@ -106,31 +106,92 @@ nonisolated struct UserList: Decodable, Identifiable, Hashable {
 
 // MARK: - Personal records from the state snapshot (`GET /api/me/state`)
 
-/// The subset of the web-compatible state snapshot iOS needs: the existing
-/// playthrough/reading a progress update must target, and the watch history
-/// that seeds recommendations. Nothing here is written back.
+/// Personal state returned by both GET and POST `/api/me/state`.
+/// Arrays decode independently and skip malformed legacy rows.
 nonisolated struct MosaicStateSnapshot: Decodable {
-    struct LibraryRow: Decodable { let media: CatalogMedia; let status: String }
-    struct MovieWatch: Decodable { let media: CatalogMedia; let watchedAt: String }
-    struct EpisodeWatch: Decodable { let series: CatalogMedia; let watchedAt: String }
+    struct LibraryRow: Decodable {
+        let media: CatalogMedia
+        let status: String
+        var isFavorite: Bool = false
+        var updatedAt: String = ""
+    }
+    struct MovieWatch: Decodable {
+        let media: CatalogMedia
+        let watchedAt: String
+        var id: String = ""
+        var isRewatch: Bool = false
+        var rating: Double? = nil
+        var review: String? = nil
+        var viewingContext: String? = nil
+        var streamingService: String? = nil
+    }
+    struct EpisodeWatch: Decodable {
+        let series: CatalogMedia
+        let watchedAt: String
+        var id: String = ""
+        var seasonNumber: Int = 0
+        var episodeNumber: Int = 0
+        var episodeTitle: String? = nil
+        var rating: Double? = nil
+        var isRewatch: Bool? = nil
+    }
     struct Rating: Decodable { let mediaKey: String; let value: Double }
+    struct Review: Decodable, Identifiable {
+        let id: String
+        let media: CatalogMedia
+        let body: String
+        let containsSpoilers: Bool
+        let rating: Double?
+        let updatedAt: String
+    }
+    struct SeasonStateRow: Decodable, Identifiable {
+        let id: String
+        let series: CatalogMedia
+        let seasonNumber: Int
+        let state: String
+        let provenance: String
+        let completedOn: String?
+        let updatedAt: String
+    }
+    struct TVHistoryRow: Decodable, Identifiable {
+        let id: String
+        let series: CatalogMedia
+        let targetType: String
+        let seasonNumber: Int?
+        let occurredAt: String
+        let isRewatch: Bool
+        let rating: Double?
+        let review: String?
+        let containsSpoilers: Bool
+        let tags: [String]
+    }
 
+    let watchRegion: String?
     let library: [LibraryRow]
     let ratings: [Rating]
+    let reviews: [Review]
+    let lists: [UserList]
     let movieWatches: [MovieWatch]
     let episodeWatches: [EpisodeWatch]
+    let seasonStates: [SeasonStateRow]
+    let tvHistory: [TVHistoryRow]
     let gamePlaythroughs: [GamePlaythrough]
     let bookReadings: [BookReading]
 
-    private enum CodingKeys: String, CodingKey { case library, ratings, movieWatches, episodeWatches, gamePlaythroughs, bookReadings }
-    init(library: [LibraryRow] = [], ratings: [Rating] = [], movieWatches: [MovieWatch] = [], episodeWatches: [EpisodeWatch] = [], gamePlaythroughs: [GamePlaythrough] = [], bookReadings: [BookReading] = []) {
-        self.library = library; self.ratings = ratings; self.movieWatches = movieWatches; self.episodeWatches = episodeWatches; self.gamePlaythroughs = gamePlaythroughs; self.bookReadings = bookReadings
+    private enum CodingKeys: String, CodingKey { case watchRegion, library, ratings, reviews, lists, movieWatches, episodeWatches, seasonStates, tvHistory, gamePlaythroughs, bookReadings }
+    init(watchRegion: String? = nil, library: [LibraryRow] = [], ratings: [Rating] = [], reviews: [Review] = [], lists: [UserList] = [], movieWatches: [MovieWatch] = [], episodeWatches: [EpisodeWatch] = [], seasonStates: [SeasonStateRow] = [], tvHistory: [TVHistoryRow] = [], gamePlaythroughs: [GamePlaythrough] = [], bookReadings: [BookReading] = []) {
+        self.watchRegion = watchRegion; self.library = library; self.ratings = ratings; self.reviews = reviews; self.lists = lists
+        self.movieWatches = movieWatches; self.episodeWatches = episodeWatches; self.seasonStates = seasonStates; self.tvHistory = tvHistory
+        self.gamePlaythroughs = gamePlaythroughs; self.bookReadings = bookReadings
     }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         func lossy<T: Decodable>(_ key: CodingKeys) -> [T] { (try? container.decodeIfPresent(LossyArray<T>.self, forKey: key))??.values ?? [] }
-        library = lossy(.library); ratings = lossy(.ratings); movieWatches = lossy(.movieWatches)
-        episodeWatches = lossy(.episodeWatches); gamePlaythroughs = lossy(.gamePlaythroughs); bookReadings = lossy(.bookReadings)
+        watchRegion = try container.decodeIfPresent(String.self, forKey: .watchRegion)
+        library = lossy(.library); ratings = lossy(.ratings); reviews = lossy(.reviews); lists = lossy(.lists)
+        movieWatches = lossy(.movieWatches); episodeWatches = lossy(.episodeWatches)
+        seasonStates = lossy(.seasonStates); tvHistory = lossy(.tvHistory)
+        gamePlaythroughs = lossy(.gamePlaythroughs); bookReadings = lossy(.bookReadings)
     }
 
     /// The record an update should edit: the most recently updated one, the
@@ -141,6 +202,13 @@ nonisolated struct MosaicStateSnapshot: Decodable {
     func reading(for media: CatalogMedia) -> BookReading? {
         bookReadings.filter { $0.media.mediaKey == media.mediaKey }.max { $0.updatedAt < $1.updatedAt }
     }
+    func reviews(for media: CatalogMedia) -> Review? {
+        reviews.filter { $0.media.mediaKey == media.mediaKey }.max { $0.updatedAt < $1.updatedAt }
+    }
+    func movieWatches(for media: CatalogMedia) -> [MovieWatch] {
+        movieWatches.filter { $0.media.mediaKey == media.mediaKey }.sorted { $0.watchedAt > $1.watchedAt }
+    }
+    func list(id: String) -> UserList? { lists.first { $0.id == id } }
 }
 
 nonisolated struct GamePlaythrough: Decodable, Hashable {
